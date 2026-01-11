@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw } from 'lucide-react'
+import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw, AlertTriangle, X } from 'lucide-react'
 
 import { useTaskStore } from '@/lib/hooks/useTaskStore'
 import { ProgressBar } from '@/components/ProgressBar'
@@ -14,6 +14,7 @@ export default function ProductivityDashboard() {
     tasks,
     loading,
     isConfigured,
+    syncError,
     addTask,
     toggleTask,
     startTimer,
@@ -87,15 +88,32 @@ export default function ProductivityDashboard() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 relative">
       <div className="max-w-4xl mx-auto mb-20">
         
+        {/* Sync Error Banner */}
+        {syncError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">Sync Error</p>
+              <p className="text-xs text-red-600">{syncError}</p>
+            </div>
+          </div>
+        )}
+
         {/* Header Section */}
         <header className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-3xl font-bold text-slate-900">Today's Command Center</h1>
-            {isConfigured && (
-              <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">
-                ✓ Synced
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isConfigured ? (
+                <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                  ✓ Synced
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-medium">
+                  ⚠ Local Only
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-slate-600 mb-4">
             Focus on the Critical items first, then use Quick Wins to build momentum.
