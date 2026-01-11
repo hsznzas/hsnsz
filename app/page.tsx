@@ -1,0 +1,239 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw } from 'lucide-react'
+
+import { useTaskStore } from '@/lib/hooks/useTaskStore'
+import { ProgressBar } from '@/components/ProgressBar'
+import { TaskItem } from '@/components/TaskItem'
+import { triggerCompletionConfetti, triggerQuickWinConfetti } from '@/lib/utils/confetti'
+import type { Category, Priority } from '@/lib/supabase/types'
+
+export default function ProductivityDashboard() {
+  const {
+    tasks,
+    loading,
+    isConfigured,
+    addTask,
+    toggleTask,
+    startTimer,
+    stopTimer,
+    isTimerActive,
+    getActiveTimer,
+    completedCount,
+    totalCount,
+    progress,
+    criticalTasks,
+    quickWins,
+    groupedByCategory,
+  } = useTaskStore()
+
+  const [isListening, setIsListening] = useState(false)
+
+  // Handle task toggle with confetti
+  const handleToggle = useCallback(async (id: number) => {
+    const task = tasks.find(t => t.id === id)
+    const completed = await toggleTask(id)
+    
+    if (completed) {
+      if (task?.priority === 'Quick Win') {
+        triggerQuickWinConfetti()
+      } else {
+        triggerCompletionConfetti()
+      }
+    }
+  }, [tasks, toggleTask])
+
+  // Voice input handler
+  const startListening = () => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-US'
+      recognition.interimResults = false
+      recognition.maxAlternatives = 1
+
+      recognition.onstart = () => setIsListening(true)
+      
+      recognition.onresult = (event: any) => {
+        const text = event.results[0][0].transcript
+        if (text) {
+          const formattedText = text.charAt(0).toUpperCase() + text.slice(1)
+          addTask(formattedText, 'Voice Input', 'Quick Win', 'Unknown')
+        }
+      }
+
+      recognition.onend = () => setIsListening(false)
+      recognition.onerror = () => setIsListening(false)
+      
+      recognition.start()
+    } else {
+      alert("Voice input is not supported in this browser. Please type your task manually.")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-600">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+          <span className="text-lg">Loading tasks...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 relative">
+      <div className="max-w-4xl mx-auto mb-20">
+        
+        {/* Header Section */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl font-bold text-slate-900">Today's Command Center</h1>
+            {isConfigured && (
+              <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                ✓ Synced
+              </span>
+            )}
+          </div>
+          <p className="text-slate-600 mb-4">
+            Focus on the Critical items first, then use Quick Wins to build momentum.
+          </p>
+          
+          <ProgressBar 
+            completed={completedCount}
+            total={totalCount}
+            progress={progress}
+          />
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* LEFT COLUMN: ACTION NOW */}
+          <div className="lg:col-span-1 space-y-6">
+            
+            {/* Critical Priority Block */}
+            <div className="bg-white rounded-xl shadow-md border-l-4 border-red-500 overflow-hidden">
+              <div className="bg-red-50 p-3 border-b border-red-100 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <h2 className="font-bold text-red-800">Must Do Now</h2>
+              </div>
+              <div className="p-2">
+                {criticalTasks.map(task => (
+                  <TaskItem 
+                    key={task.id} 
+                    task={task} 
+                    onToggle={handleToggle}
+                    isTimerActive={isTimerActive(task.id)}
+                    timerStartTime={getActiveTimer(task.id)?.startTime}
+                    onStartTimer={() => startTimer(task.id)}
+                    onStopTimer={() => stopTimer(task.id)}
+                  />
+                ))}
+                {criticalTasks.length === 0 && (
+                  <p className="text-sm text-slate-400 p-3">No critical tasks! 🎉</p>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Wins Block */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-emerald-50 p-3 border-b border-emerald-100 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-emerald-600" />
+                <h2 className="font-bold text-emerald-800">Quick Wins (Under 15m)</h2>
+              </div>
+              <div className="p-2">
+                {quickWins.map(task => (
+                  <TaskItem 
+                    key={task.id} 
+                    task={task} 
+                    onToggle={handleToggle}
+                    isTimerActive={isTimerActive(task.id)}
+                    timerStartTime={getActiveTimer(task.id)?.startTime}
+                    onStartTimer={() => startTimer(task.id)}
+                    onStopTimer={() => stopTimer(task.id)}
+                  />
+                ))}
+                {quickWins.length === 0 && (
+                  <p className="text-sm text-slate-400 p-3">No quick wins available</p>
+                )}
+              </div>
+            </div>
+
+            {/* Personal Health Block */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="bg-cyan-50 p-3 border-b border-cyan-100 flex items-center gap-2">
+                <Droplets className="w-5 h-5 text-cyan-600" />
+                <h2 className="font-bold text-cyan-800">Health Check</h2>
+              </div>
+              <div className="p-4 text-sm text-slate-600 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" className="rounded text-cyan-600 focus:ring-cyan-500" />
+                  <span>Drink Water + Sea Salt</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" className="rounded text-cyan-600 focus:ring-cyan-500" />
+                  <span>Rightbite Subscribed?</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* RIGHT COLUMN: PROJECTS & DEEP WORK */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Project Groups */}
+            {Object.entries(groupedByCategory).map(([category, catTasks]) => (
+              <div key={category} className="bg-white rounded-xl shadow-sm border border-slate-200">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 rounded-t-xl flex justify-between items-center">
+                  <h3 className="font-bold text-slate-700 text-lg">{category} List</h3>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {catTasks.filter(t => !t.completed).length} remaining
+                  </span>
+                </div>
+                <div className="p-2 divide-y divide-slate-100">
+                  {catTasks.map(task => (
+                    <TaskItem 
+                      key={task.id} 
+                      task={task} 
+                      onToggle={handleToggle} 
+                      showCategory={false}
+                      isTimerActive={isTimerActive(task.id)}
+                      timerStartTime={getActiveTimer(task.id)?.startTime}
+                      onStartTimer={() => startTimer(task.id)}
+                      onStopTimer={() => stopTimer(task.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Action Button for Voice */}
+      <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 z-50">
+        {isListening && (
+          <div className="bg-slate-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm font-medium mb-2 animate-bounce">
+            Listening...
+          </div>
+        )}
+        <button 
+          onClick={startListening}
+          className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
+            isListening 
+              ? 'bg-red-500 animate-pulse ring-4 ring-red-200' 
+              : 'bg-indigo-600 hover:bg-indigo-700'
+          } text-white flex items-center justify-center`}
+          aria-label="Add voice note"
+        >
+          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+        </button>
+      </div>
+
+    </div>
+  )
+}
