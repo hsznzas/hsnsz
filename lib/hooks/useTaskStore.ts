@@ -137,7 +137,11 @@ export function useTaskStore() {
         { event: '*', schema: 'public', table: 'tasks' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setTasks(prev => [...prev, payload.new as Task])
+            setTasks(prev => {
+              // Avoid duplicates
+              if (prev.some(t => t.id === (payload.new as Task).id)) return prev
+              return [...prev, payload.new as Task]
+            })
           } else if (payload.eventType === 'UPDATE') {
             setTasks(prev => 
               prev.map(t => t.id === payload.new.id ? payload.new as Task : t)
@@ -156,7 +160,10 @@ export function useTaskStore() {
         { event: '*', schema: 'public', table: 'time_logs' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setTimeLogs(prev => [payload.new as TimeLog, ...prev])
+            setTimeLogs(prev => {
+              if (prev.some(l => l.id === (payload.new as TimeLog).id)) return prev
+              return [payload.new as TimeLog, ...prev]
+            })
           } else if (payload.eventType === 'UPDATE') {
             setTimeLogs(prev =>
               prev.map(l => l.id === payload.new.id ? payload.new as TimeLog : l)
@@ -174,7 +181,7 @@ export function useTaskStore() {
     }
   }
 
-  // Task operations
+  // Task operations with OPTIMISTIC UPDATES
   const addTask = useCallback(async (
     text: string,
     category: Category = 'Voice Input',
@@ -182,7 +189,7 @@ export function useTaskStore() {
     duration: string = 'Unknown'
   ) => {
     const newId = Date.now()
-    const newTask = {
+    const newTask: Task = {
       id: newId,
       text,
       category,
@@ -191,12 +198,24 @@ export function useTaskStore() {
       completed: false,
     }
 
+    // Optimistic update - add to UI immediately
+    setTasks(prev => [newTask, ...prev])
+
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
-      const { error } = await supabase.from('tasks').insert(newTask)
-      if (error) console.error('Failed to add task:', error)
-    } else {
-      setTasks(prev => [newTask as Task, ...prev])
+      const { error } = await supabase.from('tasks').insert({
+        id: newId,
+        text,
+        category,
+        priority,
+        duration,
+        completed: false,
+      })
+      if (error) {
+        console.error('Failed to add task:', error)
+        // Rollback on error
+        setTasks(prev => prev.filter(t => t.id !== newId))
+      }
     }
   }, [isConfigured])
 
@@ -205,47 +224,76 @@ export function useTaskStore() {
     if (!task) return
 
     const completed = !task.completed
-    const supabase = supabaseRef.current
 
+    // Optimistic update - update UI immediately
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, completed } : t
+      )
+    )
+
+    const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       const { error } = await supabase
         .from('tasks')
         .update({ completed })
         .eq('id', taskId)
-      if (error) console.error('Failed to toggle task:', error)
-    } else {
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === taskId ? { ...t, completed } : t
+      
+      if (error) {
+        console.error('Failed to toggle task:', error)
+        // Rollback on error
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === taskId ? { ...t, completed: !completed } : t
+          )
         )
-      )
+      }
     }
 
     return completed
   }, [tasks, isConfigured])
 
   const deleteTask = useCallback(async (taskId: number) => {
-    const supabase = supabaseRef.current
+    // Store for potential rollback
+    const taskToDelete = tasks.find(t => t.id === taskId)
+    
+    // Optimistic update
+    setTasks(prev => prev.filter(t => t.id !== taskId))
 
+    const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       const { error } = await supabase.from('tasks').delete().eq('id', taskId)
-      if (error) console.error('Failed to delete task:', error)
-    } else {
-      setTasks(prev => prev.filter(t => t.id !== taskId))
+      if (error) {
+        console.error('Failed to delete task:', error)
+        // Rollback on error
+        if (taskToDelete) {
+          setTasks(prev => [...prev, taskToDelete])
+        }
+      }
     }
 
     // Also stop any active timer for this task
     stopTimer(taskId)
-  }, [isConfigured])
+  }, [isConfigured, tasks])
 
-  // Timer operations
+  // Timer operations with OPTIMISTIC UPDATES
   const startTimer = useCallback(async (taskId: number) => {
     // Check if timer already active for this task
     if (activeTimers.some(t => t.taskId === taskId)) return
 
     const startTime = new Date()
-    const supabase = supabaseRef.current
+    const timeLogId = crypto.randomUUID()
     
+    // Optimistic update
+    const newLog: TimeLog = {
+      id: timeLogId,
+      task_id: taskId,
+      start_at: startTime.toISOString(),
+    }
+    setTimeLogs(prev => [newLog, ...prev])
+    setActiveTimers(prev => [...prev, { taskId, startTime, timeLogId }])
+
+    const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       const { data, error } = await supabase
         .from('time_logs')
@@ -255,19 +303,18 @@ export function useTaskStore() {
       
       if (error) {
         console.error('Failed to start timer:', error)
-        return
+        // Rollback
+        setTimeLogs(prev => prev.filter(l => l.id !== timeLogId))
+        setActiveTimers(prev => prev.filter(t => t.taskId !== taskId))
+      } else if (data) {
+        // Update with actual ID from database
+        setTimeLogs(prev => prev.map(l => 
+          l.id === timeLogId ? { ...l, id: data.id } : l
+        ))
+        setActiveTimers(prev => prev.map(t => 
+          t.taskId === taskId ? { ...t, timeLogId: data.id } : t
+        ))
       }
-      
-      setActiveTimers(prev => [...prev, { taskId, startTime, timeLogId: data.id }])
-    } else {
-      const timeLogId = crypto.randomUUID()
-      const newLog: TimeLog = {
-        id: timeLogId,
-        task_id: taskId,
-        start_at: startTime.toISOString(),
-      }
-      setTimeLogs(prev => [newLog, ...prev])
-      setActiveTimers(prev => [...prev, { taskId, startTime, timeLogId }])
     }
   }, [isConfigured, activeTimers])
 
@@ -276,26 +323,37 @@ export function useTaskStore() {
     if (!timer) return
 
     const endTime = new Date()
-    const supabase = supabaseRef.current
 
+    // Optimistic update
+    setTimeLogs(prev =>
+      prev.map(l =>
+        l.id === timer.timeLogId
+          ? { ...l, end_at: endTime.toISOString() }
+          : l
+      )
+    )
+    setActiveTimers(prev => prev.filter(t => t.taskId !== taskId))
+
+    const supabase = supabaseRef.current
     if (isConfigured && supabase && timer.timeLogId) {
       const { error } = await supabase
         .from('time_logs')
         .update({ end_at: endTime.toISOString() })
         .eq('id', timer.timeLogId)
       
-      if (error) console.error('Failed to stop timer:', error)
-    } else if (timer.timeLogId) {
-      setTimeLogs(prev =>
-        prev.map(l =>
-          l.id === timer.timeLogId
-            ? { ...l, end_at: endTime.toISOString() }
-            : l
+      if (error) {
+        console.error('Failed to stop timer:', error)
+        // Rollback
+        setTimeLogs(prev =>
+          prev.map(l =>
+            l.id === timer.timeLogId
+              ? { ...l, end_at: undefined }
+              : l
+          )
         )
-      )
+        setActiveTimers(prev => [...prev, timer])
+      }
     }
-
-    setActiveTimers(prev => prev.filter(t => t.taskId !== taskId))
   }, [activeTimers, isConfigured])
 
   const isTimerActive = useCallback((taskId: number) => {
