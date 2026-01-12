@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw, AlertTriangle, X } from 'lucide-react'
+import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw, AlertTriangle } from 'lucide-react'
 
 import { useTaskStore } from '@/lib/hooks/useTaskStore'
 import { ProgressBar } from '@/components/ProgressBar'
 import { TaskItem } from '@/components/TaskItem'
+import { AITaskInput } from '@/components/AITaskInput'
 import { triggerCompletionConfetti, triggerQuickWinConfetti } from '@/lib/utils/confetti'
 import type { Category, Priority } from '@/lib/supabase/types'
 
@@ -44,6 +45,13 @@ export default function ProductivityDashboard() {
       }
     }
   }, [tasks, toggleTask])
+
+  // Handle adding multiple tasks from AI
+  const handleAddMultipleTasks = useCallback((newTasks: { text: string; category: Category; priority: Priority; duration: string }[]) => {
+    newTasks.forEach(task => {
+      addTask(task.text, task.category, task.priority, task.duration)
+    })
+  }, [addTask])
 
   // Voice input handler
   const startListening = () => {
@@ -232,7 +240,10 @@ export default function ProductivityDashboard() {
         </div>
       </div>
 
-      {/* Floating Action Button for Voice */}
+      {/* AI Task Input (Bottom Left) */}
+      <AITaskInput onAddTasks={handleAddMultipleTasks} />
+
+      {/* Floating Action Button for Voice (Bottom Right) */}
       <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 z-50">
         {isListening && (
           <div className="bg-slate-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm font-medium mb-2 animate-bounce">
