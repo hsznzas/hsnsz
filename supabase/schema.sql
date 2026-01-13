@@ -15,9 +15,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE task_priority AS ENUM ('Critical', 'Quick Win', 'High', 'Medium', 'Low');
 CREATE TYPE task_category AS ENUM ('Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input');
 
--- Tasks table (using INTEGER id to match source data)
+-- Tasks table (using BIGINT id to support Date.now() timestamps)
 CREATE TABLE tasks (
-    id INTEGER PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     text TEXT NOT NULL,
     category task_category NOT NULL DEFAULT 'Personal',
     priority task_priority NOT NULL DEFAULT 'Medium',
@@ -31,7 +31,7 @@ CREATE TABLE tasks (
 -- Time logs table for tracking work sessions
 CREATE TABLE time_logs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    task_id BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     start_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     end_at TIMESTAMPTZ,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
