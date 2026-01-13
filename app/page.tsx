@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, Zap, Droplets, Mic, MicOff, RefreshCw, AlertTriangle } from 'lucide-react'
+import { useCallback } from 'react'
+import { AlertCircle, Zap, Droplets, RefreshCw, AlertTriangle } from 'lucide-react'
 
 import { useTaskStore } from '@/lib/hooks/useTaskStore'
 import { ProgressBar } from '@/components/ProgressBar'
@@ -30,8 +30,6 @@ export default function ProductivityDashboard() {
     groupedByCategory,
   } = useTaskStore()
 
-  const [isListening, setIsListening] = useState(false)
-
   // Handle task toggle with confetti
   const handleToggle = useCallback(async (id: number) => {
     const task = tasks.find(t => t.id === id)
@@ -53,34 +51,6 @@ export default function ProductivityDashboard() {
     })
   }, [addTask])
 
-  // Voice input handler
-  const startListening = () => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      const recognition = new SpeechRecognition()
-      recognition.lang = 'en-US'
-      recognition.interimResults = false
-      recognition.maxAlternatives = 1
-
-      recognition.onstart = () => setIsListening(true)
-      
-      recognition.onresult = (event: any) => {
-        const text = event.results[0][0].transcript
-        if (text) {
-          const formattedText = text.charAt(0).toUpperCase() + text.slice(1)
-          addTask(formattedText, 'Voice Input', 'Quick Win', 'Unknown')
-        }
-      }
-
-      recognition.onend = () => setIsListening(false)
-      recognition.onerror = () => setIsListening(false)
-      
-      recognition.start()
-    } else {
-      alert("Voice input is not supported in this browser. Please type your task manually.")
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -93,8 +63,8 @@ export default function ProductivityDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 relative">
-      <div className="max-w-4xl mx-auto mb-20">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800 relative pb-32">
+      <div className="max-w-4xl mx-auto">
         
         {/* Sync Error Banner */}
         {syncError && (
@@ -240,29 +210,8 @@ export default function ProductivityDashboard() {
         </div>
       </div>
 
-      {/* AI Task Input (Bottom Left) */}
+      {/* AI Task Input Bar (Fixed at Bottom) */}
       <AITaskInput onAddTasks={handleAddMultipleTasks} />
-
-      {/* Floating Action Button for Voice (Bottom Right) */}
-      <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 z-50">
-        {isListening && (
-          <div className="bg-slate-900 text-white px-4 py-2 rounded-lg shadow-xl text-sm font-medium mb-2 animate-bounce">
-            Listening...
-          </div>
-        )}
-        <button 
-          onClick={startListening}
-          className={`p-4 rounded-full shadow-lg transition-all transform hover:scale-105 ${
-            isListening 
-              ? 'bg-red-500 animate-pulse ring-4 ring-red-200' 
-              : 'bg-indigo-600 hover:bg-indigo-700'
-          } text-white flex items-center justify-center`}
-          aria-label="Add voice note"
-        >
-          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-        </button>
-      </div>
-
     </div>
   )
 }

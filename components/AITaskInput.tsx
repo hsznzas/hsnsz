@@ -10,7 +10,7 @@ import {
   Loader2, 
   CheckCircle,
   AlertCircle,
-  ChevronDown
+  XCircle
 } from 'lucide-react'
 import { useLocalAPIKey } from '@/lib/hooks/useLocalAPIKey'
 import { useAIParser, ParsedTask } from '@/lib/hooks/useAIParser'
@@ -22,22 +22,14 @@ interface AITaskInputProps {
 }
 
 export function AITaskInput({ onAddTasks }: AITaskInputProps) {
-  const [isOpen, setIsOpen] = useState(false)
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false)
   const [input, setInput] = useState('')
   const [parsedTasks, setParsedTasks] = useState<ParsedTask[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const { apiKey, setApiKey, clearApiKey, hasApiKey, isLoaded } = useLocalAPIKey()
   const { parseTasks, isLoading, error } = useAIParser(apiKey)
-
-  // Focus input when opened
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [isOpen])
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
@@ -65,131 +57,169 @@ export function AITaskInput({ onAddTasks }: AITaskInputProps) {
       setShowSuccess(false)
       setParsedTasks([])
       setInput('')
-      setIsOpen(false)
     }, 1500)
+  }
+
+  const handleCancelTasks = () => {
+    setParsedTasks([])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (parsedTasks.length > 0) {
-        handleConfirmTasks()
-      } else {
-        handleSubmit()
-      }
-    }
-  }
-
-  const handleOpen = () => {
-    if (!hasApiKey && isLoaded) {
-      setIsKeyModalOpen(true)
-    } else {
-      setIsOpen(true)
+      handleSubmit()
     }
   }
 
   return (
     <>
-      {/* Floating Button */}
-      <div className="fixed bottom-6 left-6 z-50">
+      {/* Fixed Bottom Input Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50">
+        {/* Success Toast */}
         <AnimatePresence>
-          {!isOpen && (
-            <motion.button
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              onClick={handleOpen}
-              className="group p-4 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl hover:scale-105 transition-all"
-              title="AI Task Assistant"
+          {showSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4"
             >
-              <Sparkles className="w-6 h-6" />
-              
-              {/* Tooltip */}
-              <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                AI Task Assistant
-              </span>
-            </motion.button>
+              <div className="bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                <span className="font-medium">Tasks added successfully!</span>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Expanded Chat Interface */}
+        {/* Confirmation Panel */}
         <AnimatePresence>
-          {isOpen && (
+          {parsedTasks.length > 0 && !showSuccess && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="bg-white border-t border-slate-200 shadow-2xl"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  <span className="font-semibold">AI Task Assistant</span>
-                </div>
-                <div className="flex items-center gap-1">
+              <div className="max-w-3xl mx-auto p-4">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                    <h3 className="font-semibold text-slate-800">
+                      Confirm {parsedTasks.length} Task{parsedTasks.length > 1 ? 's' : ''}
+                    </h3>
+                  </div>
                   <button
-                    onClick={() => setIsKeyModalOpen(true)}
-                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                    title="API Key Settings"
+                    onClick={handleCancelTasks}
+                    className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-500"
                   >
-                    <Settings className="w-4 h-4" />
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Tasks Preview */}
+                <div className="space-y-2 max-h-[300px] overflow-y-auto mb-4">
+                  {parsedTasks.map((task, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-start gap-3"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 mt-0.5">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-800">{task.text}</p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getCategoryColor(task.category)}`}>
+                            {task.category}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
+                            {task.priority}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            ⏱️ {task.duration}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={handleCancelTasks}
+                    className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors flex items-center gap-2"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      setIsOpen(false)
-                      setParsedTasks([])
-                      setInput('')
-                    }}
-                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                    onClick={handleConfirmTasks}
+                    className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-600/20"
                   >
-                    <X className="w-4 h-4" />
+                    <CheckCircle className="w-4 h-4" />
+                    Add {parsedTasks.length} Task{parsedTasks.length > 1 ? 's' : ''}
                   </button>
                 </div>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              {/* Success Animation */}
+        {/* Main Input Bar */}
+        {parsedTasks.length === 0 && !showSuccess && (
+          <div className="bg-white border-t border-slate-200 shadow-lg">
+            <div className="max-w-3xl mx-auto p-4">
+              {/* Error Display */}
               <AnimatePresence>
-                {showSuccess && (
+                {error && (
                   <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-emerald-500 flex items-center justify-center z-10"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-3"
                   >
-                    <div className="text-center text-white">
-                      <CheckCircle className="w-16 h-16 mx-auto mb-2" />
-                      <p className="text-lg font-semibold">Tasks Added!</p>
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-600">{error}</p>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Body */}
-              <div className="p-4">
-                {/* Instructions */}
-                {!parsedTasks.length && !isLoading && (
-                  <p className="text-sm text-slate-500 mb-3">
-                    Describe your tasks in natural language. I'll parse them for you.
-                  </p>
-                )}
+              {/* Input Row */}
+              <div className="flex items-center gap-3">
+                {/* AI Icon */}
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
 
-                {/* Input Area */}
-                <div className="relative">
-                  <textarea
+                {/* Text Input */}
+                <div className="flex-1 relative">
+                  <input
                     ref={inputRef}
+                    type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="e.g., Review Sinjab contract urgently, call Dhruv, buy groceries..."
-                    rows={3}
-                    disabled={isLoading || showSuccess}
-                    className="w-full px-3 py-2.5 pr-12 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none text-sm disabled:bg-slate-50"
+                    placeholder={hasApiKey 
+                      ? "Add tasks naturally... e.g., 'Review contract, call John, buy groceries'" 
+                      : "Click settings to add your Gemini API key first..."
+                    }
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-sm bg-slate-50 disabled:bg-slate-100"
                   />
+                  
+                  {/* Send Button */}
                   <button
-                    onClick={parsedTasks.length > 0 ? handleConfirmTasks : handleSubmit}
-                    disabled={!input.trim() || isLoading || showSuccess}
-                    className="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleSubmit}
+                    disabled={!input.trim() || isLoading || !hasApiKey}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -199,81 +229,31 @@ export function AITaskInput({ onAddTasks }: AITaskInputProps) {
                   </button>
                 </div>
 
-                {/* Error Display */}
-                {error && (
-                  <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-600">{error}</p>
-                  </div>
-                )}
-
-                {/* Parsed Tasks Preview */}
-                <AnimatePresence>
-                  {parsedTasks.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mt-4"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-slate-700">
-                          Parsed {parsedTasks.length} task{parsedTasks.length > 1 ? 's' : ''}:
-                        </p>
-                        <button
-                          onClick={() => setParsedTasks([])}
-                          className="text-xs text-slate-500 hover:text-slate-700"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                        {parsedTasks.map((task, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="p-2.5 bg-slate-50 rounded-lg border border-slate-200"
-                          >
-                            <p className="text-sm font-medium text-slate-800">{task.text}</p>
-                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getCategoryColor(task.category)}`}>
-                                {task.category}
-                              </span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
-                                {task.priority}
-                              </span>
-                              <span className="text-xs text-slate-400">
-                                {task.duration}
-                              </span>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-
-                      <button
-                        onClick={handleConfirmTasks}
-                        className="w-full mt-3 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Add {parsedTasks.length} Task{parsedTasks.length > 1 ? 's' : ''}
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Keyboard shortcut hint */}
-                {!parsedTasks.length && (
-                  <p className="text-xs text-slate-400 mt-3 text-center">
-                    Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">Enter</kbd> to send
-                  </p>
-                )}
+                {/* Settings Button */}
+                <button
+                  onClick={() => setIsKeyModalOpen(true)}
+                  className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${
+                    hasApiKey 
+                      ? 'hover:bg-slate-100 text-slate-500' 
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  }`}
+                  title={hasApiKey ? "API Key Settings" : "Add API Key"}
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+              {/* Help Text */}
+              <p className="text-xs text-slate-400 mt-2 text-center">
+                {hasApiKey ? (
+                  <>Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500">Enter</kbd> to parse tasks with AI</>
+                ) : (
+                  <>🔑 Add your Gemini API key to enable AI task parsing</>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* API Key Modal */}
