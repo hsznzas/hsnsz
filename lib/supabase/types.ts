@@ -21,14 +21,14 @@ export interface TimeLog {
   user_id?: string
 }
 
-// Category badge colors - matching source exactly
+// Category badge colors - with dark mode support
 export const CATEGORY_COLORS: Record<Category, string> = {
-  'Sinjab': 'bg-purple-100 text-purple-800',
-  'Ajdel': 'bg-blue-100 text-blue-800',
-  'Personal': 'bg-green-100 text-green-800',
-  'Haseeb': 'bg-orange-100 text-orange-800',
-  'Raqeeb': 'bg-pink-100 text-pink-800',
-  'Voice Input': 'bg-indigo-100 text-indigo-800',
+  'Sinjab': 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300',
+  'Ajdel': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300',
+  'Personal': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300',
+  'Haseeb': 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300',
+  'Raqeeb': 'bg-pink-100 dark:bg-pink-900/40 text-pink-800 dark:text-pink-300',
+  'Voice Input': 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300',
 }
 
 // Initial 36 tasks from source
