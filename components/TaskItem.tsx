@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap } from 'lucide-react'
 import type { Task, Category, Priority } from '@/lib/supabase/types'
 import { CATEGORIES, PRIORITIES } from '@/lib/supabase/types'
 import { CategoryBadge } from './CategoryBadge'
@@ -19,6 +19,7 @@ interface TaskItemProps {
   onStopTimer?: () => void
   onPinToToday?: (id: number, pinned: boolean) => void
   showPinButton?: boolean
+  showQuickWinButton?: boolean
   onUpdateDueDate?: (id: number, date: string | null) => void
   onUpdateTask?: (id: number, updates: Partial<Pick<Task, 'text' | 'category' | 'priority' | 'duration'>>) => void
   onDeleteTask?: (id: number) => void
@@ -69,6 +70,7 @@ export function TaskItem({
   onStopTimer,
   onPinToToday,
   showPinButton = true,
+  showQuickWinButton = true,
   onUpdateDueDate,
   onUpdateTask,
   onDeleteTask,
@@ -462,6 +464,20 @@ export function TaskItem({
             title={task.pinned_to_today ? 'Unpin from Today' : 'Pin to Today'}
           >
             {task.pinned_to_today ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+          </button>
+        )}
+
+        {/* Quick Win Button */}
+        {showQuickWinButton && onUpdateTask && !task.completed && task.priority !== 'Quick Win' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onUpdateTask(task.id, { priority: 'Quick Win' })
+            }}
+            className="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400"
+            title="Add to Quick Wins"
+          >
+            <Zap className="w-4 h-4" />
           </button>
         )}
 
