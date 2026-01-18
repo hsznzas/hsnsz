@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Clock, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { clsx } from 'clsx'
 import type { Task } from '@/lib/supabase/types'
-import { CATEGORY_COLORS } from '@/lib/supabase/types'
+import { DEFAULT_CATEGORY_COLORS } from '@/lib/supabase/types'
 import type { ActiveTimer } from '@/lib/hooks/useTaskStore'
 
 interface ActiveTimersProps {
@@ -43,7 +43,7 @@ function TimerDisplay({ timer, task, onStop }: {
     return () => clearInterval(interval)
   }, [timer.startTime])
 
-  const categoryColor = task ? CATEGORY_COLORS[task.category] : 'bg-gray-100 text-gray-800'
+  const categoryColor = task ? DEFAULT_CATEGORY_COLORS[task.category] : 'bg-gray-100 text-gray-800'
 
   return (
     <motion.div

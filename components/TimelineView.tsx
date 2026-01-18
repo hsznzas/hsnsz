@@ -27,7 +27,7 @@ import {
   differenceInMinutes,
 } from 'date-fns'
 import type { Task, TimeLog } from '@/lib/supabase/types'
-import { CATEGORY_COLORS } from '@/lib/supabase/types'
+import { DEFAULT_CATEGORY_COLORS } from '@/lib/supabase/types'
 
 interface TimelineViewProps {
   tasks: Task[]
@@ -260,7 +260,7 @@ export function TimelineView({ tasks, timeLogs }: TimelineViewProps) {
               const task = getTask(taskId)
               if (!task) return null
 
-              const categoryColor = CATEGORY_COLORS[task.category] || 'bg-gray-100 text-gray-800'
+              const categoryColor = DEFAULT_CATEGORY_COLORS[task.category] || 'bg-gray-100 text-gray-800'
 
               return (
                 <div key={taskId} className="flex min-h-[60px]">

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import type { Task, TimeLog } from '@/lib/supabase/types'
-import { CATEGORY_COLORS } from '@/lib/supabase/types'
+import { DEFAULT_CATEGORY_COLORS } from '@/lib/supabase/types'
 
 interface WeeklyGanttProps {
   timeLogs: TimeLog[]
