@@ -438,6 +438,7 @@ export default function ProductivityDashboard() {
                       onPauseTimer={() => pauseTimer(task.id)}
                       onStopTimer={() => stopTimer(task.id)}
                       onPinToToday={pinToToday}
+                      showQuickWinButton={false}
                       onUpdateDueDate={updateDueDate}
                       onUpdateTask={updateTask}
                       onDeleteTask={deleteTask}
