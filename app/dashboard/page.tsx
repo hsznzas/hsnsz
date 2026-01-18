@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { 
   AlertCircle, 
   Zap, 
@@ -13,7 +14,8 @@ import {
   Flame,
   BarChart3,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Home
 } from 'lucide-react'
 import {
   DndContext,
@@ -263,6 +265,15 @@ export default function ProductivityDashboard() {
               <p className="text-sm text-slate-500 dark:text-slate-400">ADHD-Optimized Hyper-Focus</p>
             </div>
             <div className="flex items-center gap-2">
+              {/* Home Button */}
+              <Link
+                href="/"
+                className="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                aria-label="Go to home page"
+              >
+                <Home className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              </Link>
+              
               {/* Dark Mode Toggle */}
               {mounted && (
                 <button
