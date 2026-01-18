@@ -1,18 +1,5 @@
 export type Priority = 'Critical' | 'Quick Win' | 'High' | 'Medium' | 'Low'
-
-// Category is now a string to support dynamic categories from the database
-export type Category = string
-
-// Category record from the categories table
-export interface CategoryRecord {
-  id: number
-  name: string
-  color: string
-  icon: string
-  sort_order: number
-  is_project: boolean
-  created_at?: string
-}
+export type Category = 'Sinjab' | 'Ajdel' | 'Personal' | 'Haseeb' | 'Raqeeb' | 'Voice Input' | 'Today' | 'Streaks'
 
 export interface Task {
   id: number
@@ -41,8 +28,8 @@ export interface TimeLog {
   user_id?: string
 }
 
-// Default color mappings for categories (used as fallback)
-export const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
+// Category badge colors - with dark mode support
+export const CATEGORY_COLORS: Record<Category, string> = {
   'Sinjab': 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300',
   'Ajdel': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300',
   'Personal': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300',
@@ -51,37 +38,6 @@ export const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
   'Voice Input': 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300',
   'Today': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
   'Streaks': 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
-}
-
-// Color mapping from database color names to Tailwind classes
-export const COLOR_CLASS_MAP: Record<string, string> = {
-  'slate': 'bg-slate-100 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300',
-  'red': 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300',
-  'orange': 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300',
-  'amber': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
-  'yellow': 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300',
-  'lime': 'bg-lime-100 dark:bg-lime-900/40 text-lime-800 dark:text-lime-300',
-  'green': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300',
-  'emerald': 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
-  'teal': 'bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300',
-  'cyan': 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-800 dark:text-cyan-300',
-  'sky': 'bg-sky-100 dark:bg-sky-900/40 text-sky-800 dark:text-sky-300',
-  'blue': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300',
-  'indigo': 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300',
-  'violet': 'bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-300',
-  'purple': 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300',
-  'fuchsia': 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-800 dark:text-fuchsia-300',
-  'pink': 'bg-pink-100 dark:bg-pink-900/40 text-pink-800 dark:text-pink-300',
-  'rose': 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300',
-}
-
-// Helper to get category color class
-export function getCategoryColorClass(categoryName: string, categories: CategoryRecord[]): string {
-  const category = categories.find(c => c.name === categoryName)
-  if (category && COLOR_CLASS_MAP[category.color]) {
-    return COLOR_CLASS_MAP[category.color]
-  }
-  return DEFAULT_CATEGORY_COLORS[categoryName] || COLOR_CLASS_MAP['slate']
 }
 
 // Priority colors
@@ -93,15 +49,11 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
   'Low': 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
 }
 
-// Default project categories (fallback when database not available)
-export const DEFAULT_PROJECT_CATEGORIES: string[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb']
+// Project categories (excluding special categories)
+export const PROJECT_CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb']
 
-// Default all categories (fallback)
-export const DEFAULT_CATEGORIES: string[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input', 'Today', 'Streaks']
-
-// Legacy exports for backward compatibility
-export const PROJECT_CATEGORIES = DEFAULT_PROJECT_CATEGORIES
-export const CATEGORIES = DEFAULT_CATEGORIES
+// All categories for edit dropdown
+export const CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input', 'Today', 'Streaks']
 
 // All priorities for edit dropdown
 export const PRIORITIES: Priority[] = ['Critical', 'Quick Win', 'High', 'Medium', 'Low']

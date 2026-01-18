@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import { 
   AlertCircle, 
   Zap, 
@@ -14,8 +13,7 @@ import {
   Flame,
   BarChart3,
   ChevronDown,
-  ChevronRight,
-  Home
+  ChevronRight
 } from 'lucide-react'
 import {
   DndContext,
@@ -46,7 +44,7 @@ import { StreakCard } from '@/components/StreakCard'
 import { ListHeader } from '@/components/ListHeader'
 import { triggerCompletionConfetti, triggerQuickWinConfetti } from '@/lib/utils/confetti'
 import type { Category, Priority, Task } from '@/lib/supabase/types'
-// Categories are now loaded dynamically from useTaskStore
+import { PROJECT_CATEGORIES } from '@/lib/supabase/types'
 
 type ViewTab = 'tasks' | 'archive' | 'timeline'
 
@@ -116,12 +114,6 @@ export default function ProductivityDashboard() {
     archivedTasks,
     archivedByCategory,
     groupedByCategory,
-    // Category management
-    categories,
-    projectCategoryNames,
-    allCategoryNames,
-    createCategory,
-    deleteCategory,
   } = useTaskStore()
 
   const { theme, toggleTheme, mounted } = useTheme()
@@ -134,28 +126,20 @@ export default function ProductivityDashboard() {
   const [newTaskIds, setNewTaskIds] = useState<Set<number>>(new Set())
   const prevTaskCountRef = useRef(tasks.length)
   
-  // List order state - initialized from localStorage, synced with dynamic categories
-  const [listOrder, setListOrder] = useState<string[]>([])
-  
-  // Sync list order with dynamic categories
-  useEffect(() => {
-    if (projectCategoryNames.length === 0) return
-    
-    const stored = localStorage.getItem('project-list-order')
-    if (stored) {
-      try {
-        const savedOrder = JSON.parse(stored) as string[]
-        // Merge: keep saved order for existing categories, add new ones at the end
-        const validSaved = savedOrder.filter(name => projectCategoryNames.includes(name))
-        const newCategories = projectCategoryNames.filter(name => !savedOrder.includes(name))
-        setListOrder([...validSaved, ...newCategories])
-      } catch {
-        setListOrder(projectCategoryNames)
+  // List order state - initialized from localStorage
+  const [listOrder, setListOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('project-list-order')
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch {
+          return PROJECT_CATEGORIES
+        }
       }
-    } else {
-      setListOrder(projectCategoryNames)
     }
-  }, [projectCategoryNames])
+    return PROJECT_CATEGORIES
+  })
   
   // DnD sensors for keyboard and pointer
   const sensors = useSensors(
@@ -279,15 +263,6 @@ export default function ProductivityDashboard() {
               <p className="text-sm text-slate-500 dark:text-slate-400">ADHD-Optimized Hyper-Focus</p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Home Button */}
-              <Link
-                href="/"
-                className="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
-                aria-label="Go to home page"
-              >
-                <Home className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-              </Link>
-              
               {/* Dark Mode Toggle */}
               {mounted && (
                 <button
@@ -452,7 +427,6 @@ export default function ProductivityDashboard() {
                       onPauseTimer={() => pauseTimer(task.id)}
                       onStopTimer={() => stopTimer(task.id)}
                       onPinToToday={pinToToday}
-                      showQuickWinButton={false}
                       onUpdateDueDate={updateDueDate}
                       onUpdateTask={updateTask}
                       onDeleteTask={deleteTask}
@@ -628,15 +602,12 @@ export default function ProductivityDashboard() {
       {/* AI Task Input Bar (Fixed at Bottom) */}
       <AITaskInput 
         tasks={tasks}
-        availableCategories={allCategoryNames}
         onAddTasks={handleAddMultipleTasks}
         onToggleTask={toggleTask}
         onDeleteTask={deleteTask}
         onPinToToday={pinToToday}
         onUpdateDueDate={updateDueDate}
         onUpdateTask={updateTask}
-        onCreateCategory={createCategory}
-        onDeleteCategory={deleteCategory}
       />
     </div>
   )

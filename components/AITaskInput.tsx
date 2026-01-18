@@ -16,9 +16,7 @@ import {
   Edit3,
   Calendar,
   AlertTriangle,
-  Info,
-  FolderPlus,
-  FolderMinus
+  Info
 } from 'lucide-react'
 import { useLocalAPIKey } from '@/lib/hooks/useLocalAPIKey'
 import { useAICommands, AICommandResult, ParsedTask, TaskFilter } from '@/lib/hooks/useAICommands'
@@ -27,28 +25,22 @@ import type { Category, Priority, Task } from '@/lib/supabase/types'
 
 interface AITaskInputProps {
   tasks: Task[]
-  availableCategories: string[]
   onAddTasks: (tasks: { text: string; category: Category; priority: Priority; duration: string; dueDate?: string }[]) => void
   onToggleTask: (id: number) => void
   onDeleteTask: (id: number) => void
   onPinToToday: (id: number, pinned: boolean) => void
   onUpdateDueDate: (id: number, date: string | null) => void
   onUpdateTask: (id: number, updates: Partial<Pick<Task, 'text' | 'category' | 'priority' | 'duration'>>) => void
-  onCreateCategory: (name: string, color?: string, icon?: string) => Promise<{ success: boolean; error?: string }>
-  onDeleteCategory: (name: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export function AITaskInput({ 
   tasks,
-  availableCategories,
   onAddTasks, 
   onToggleTask, 
   onDeleteTask,
   onPinToToday,
   onUpdateDueDate,
   onUpdateTask,
-  onCreateCategory,
-  onDeleteCategory,
 }: AITaskInputProps) {
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -59,7 +51,7 @@ export function AITaskInput({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { apiKey, setApiKey, clearApiKey, hasApiKey } = useLocalAPIKey()
-  const { parseCommand, getMatchingTasks, isLoading, error } = useAICommands(apiKey, availableCategories)
+  const { parseCommand, getMatchingTasks, isLoading, error } = useAICommands(apiKey)
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
@@ -79,7 +71,7 @@ export function AITaskInput({
     }
   }
 
-  const executeCommand = async () => {
+  const executeCommand = () => {
     if (!commandResult) return
 
     switch (commandResult.type) {
@@ -136,42 +128,6 @@ export function AITaskInput({
         }
         break
 
-      case 'create_list':
-        if (commandResult.listName) {
-          const result = await onCreateCategory(
-            commandResult.listName,
-            commandResult.listColor || 'slate',
-            commandResult.listIcon || 'folder'
-          )
-          if (result.success) {
-            showSuccessToast(`Created new list "${commandResult.listName}"!`)
-          } else {
-            setCommandResult({
-              ...commandResult,
-              type: 'unknown',
-              error: result.error,
-            })
-            return // Don't reset state so user sees the error
-          }
-        }
-        break
-
-      case 'delete_list':
-        if (commandResult.listName) {
-          const result = await onDeleteCategory(commandResult.listName)
-          if (result.success) {
-            showSuccessToast(`Deleted list "${commandResult.listName}"!`)
-          } else {
-            setCommandResult({
-              ...commandResult,
-              type: 'unknown',
-              error: result.error,
-            })
-            return // Don't reset state so user sees the error
-          }
-        }
-        break
-
       default:
         break
     }
@@ -212,8 +168,6 @@ export function AITaskInput({
       case 'pin_to_today': case 'unpin_from_today': return <Pin className="w-5 h-5 text-blue-500" />
       case 'set_due_date': return <Calendar className="w-5 h-5 text-orange-500" />
       case 'change_priority': case 'change_category': return <Edit3 className="w-5 h-5 text-indigo-500" />
-      case 'create_list': return <FolderPlus className="w-5 h-5 text-emerald-500" />
-      case 'delete_list': return <FolderMinus className="w-5 h-5 text-red-500" />
       case 'backend_required': return <AlertTriangle className="w-5 h-5 text-amber-500" />
       default: return <Info className="w-5 h-5 text-slate-500" />
     }
@@ -230,24 +184,17 @@ export function AITaskInput({
       case 'set_due_date': return `Set Due Date for ${matchingTasks.length} Task(s)`
       case 'change_priority': return `Change Priority for ${matchingTasks.length} Task(s)`
       case 'change_category': return `Move ${matchingTasks.length} Task(s) to ${result.newValue?.category}`
-      case 'create_list': return `Create List "${result.listName}"`
-      case 'delete_list': return `Delete List "${result.listName}"`
       case 'backend_required': return 'Backend Change Required'
       case 'unknown': return 'Unknown Command'
       default: return 'Command'
     }
   }
 
-  const isDangerous = commandResult?.type === 'delete_tasks' || commandResult?.type === 'delete_list'
+  const isDangerous = commandResult?.type === 'delete_tasks'
   const isBackendRequired = commandResult?.type === 'backend_required'
   const isUnknown = commandResult?.type === 'unknown'
-  const isListOperation = commandResult?.type === 'create_list' || commandResult?.type === 'delete_list'
   const canExecute = commandResult && !isBackendRequired && !isUnknown && (
-    commandResult.type === 'add_tasks' 
-      ? (commandResult.tasks?.length || 0) > 0 
-      : isListOperation 
-        ? !!commandResult.listName
-        : matchingTasks.length > 0
+    commandResult.type === 'add_tasks' ? (commandResult.tasks?.length || 0) > 0 : matchingTasks.length > 0
   )
 
   return (
@@ -358,20 +305,7 @@ export function AITaskInput({
                           +
                         </div>
                         <div className="flex-1 min-w-0">
-                          {/* Parse title and description from text (format: "EMOJI TITLE\nDESCRIPTION") */}
-                          {(() => {
-                            const parts = task.text.split('\n')
-                            const title = parts[0] || task.text
-                            const description = parts.slice(1).join('\n')
-                            return (
-                              <>
-                                <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{title}</p>
-                                {description && (
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 font-light mt-0.5">{description}</p>
-                                )}
-                              </>
-                            )
-                          })()}
+                          <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.text}</p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getCategoryColor(task.category)}`}>
                               {task.category}
@@ -387,44 +321,8 @@ export function AITaskInput({
                   </div>
                 )}
 
-                {/* List Operation Preview */}
-                {isListOperation && commandResult.listName && (
-                  <div className={`p-4 rounded-xl mb-4 ${
-                    commandResult.type === 'create_list' 
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'
-                      : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {commandResult.type === 'create_list' ? (
-                        <FolderPlus className="w-8 h-8 text-emerald-500" />
-                      ) : (
-                        <FolderMinus className="w-8 h-8 text-red-500" />
-                      )}
-                      <div>
-                        <p className={`font-medium ${
-                          commandResult.type === 'create_list' 
-                            ? 'text-emerald-800 dark:text-emerald-200' 
-                            : 'text-red-800 dark:text-red-200'
-                        }`}>
-                          {commandResult.listName}
-                        </p>
-                        {commandResult.type === 'create_list' && (
-                          <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                            Color: {commandResult.listColor || 'slate'} • Icon: {commandResult.listIcon || 'folder'}
-                          </p>
-                        )}
-                        {commandResult.type === 'delete_list' && (
-                          <p className="text-xs text-red-600 dark:text-red-400">
-                            This list will be permanently deleted
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Matching Tasks Preview (for bulk operations) */}
-                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && !isListOperation && matchingTasks.length > 0 && (
+                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && matchingTasks.length > 0 && (
                   <div className="space-y-1 max-h-[200px] overflow-y-auto mb-4">
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                       Affected tasks:
@@ -443,7 +341,7 @@ export function AITaskInput({
                       >
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.completed ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                         <span className={`flex-1 truncate ${isDangerous ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {task.text.split('\n')[0]}
+                          {task.text}
                         </span>
                         <span className="text-[10px] text-slate-400">{task.category}</span>
                       </motion.div>
@@ -457,7 +355,7 @@ export function AITaskInput({
                 )}
 
                 {/* No Matching Tasks */}
-                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && !isListOperation && matchingTasks.length === 0 && (
+                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && matchingTasks.length === 0 && (
                   <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 text-center">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       No tasks match the criteria

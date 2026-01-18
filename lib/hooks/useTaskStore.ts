@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Task, TimeLog, Category, Priority, CategoryRecord } from '@/lib/supabase/types'
-import { INITIAL_TASKS, DEFAULT_PROJECT_CATEGORIES, DEFAULT_CATEGORIES } from '@/lib/supabase/types'
+import type { Task, TimeLog, Category, Priority } from '@/lib/supabase/types'
+import { INITIAL_TASKS, PROJECT_CATEGORIES } from '@/lib/supabase/types'
 
 export interface ActiveTimer {
   taskId: number
@@ -13,23 +13,10 @@ export interface ActiveTimer {
   accumulatedSeconds: number  // Time accumulated before pause
 }
 
-// Default categories when database doesn't have the categories table yet
-const FALLBACK_CATEGORIES: CategoryRecord[] = [
-  { id: 1, name: 'Sinjab', color: 'purple', icon: 'briefcase', sort_order: 1, is_project: true },
-  { id: 2, name: 'Ajdel', color: 'blue', icon: 'rocket', sort_order: 2, is_project: true },
-  { id: 3, name: 'Personal', color: 'green', icon: 'user', sort_order: 3, is_project: true },
-  { id: 4, name: 'Haseeb', color: 'orange', icon: 'code', sort_order: 4, is_project: true },
-  { id: 5, name: 'Raqeeb', color: 'pink', icon: 'target', sort_order: 5, is_project: true },
-  { id: 6, name: 'Voice Input', color: 'indigo', icon: 'mic', sort_order: 100, is_project: false },
-  { id: 7, name: 'Today', color: 'amber', icon: 'sun', sort_order: 101, is_project: false },
-  { id: 8, name: 'Streaks', color: 'emerald', icon: 'flame', sort_order: 102, is_project: false },
-]
-
 export function useTaskStore() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
   const [activeTimers, setActiveTimers] = useState<ActiveTimer[]>([])
-  const [categories, setCategories] = useState<CategoryRecord[]>(FALLBACK_CATEGORIES)
   const [loading, setLoading] = useState(true)
   const [isConfigured, setIsConfigured] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -61,21 +48,7 @@ export function useTaskStore() {
     try {
       setLoading(true)
       setSyncError(null)
-      console.log('[TaskStore] Loading data from Supabase...')
-      
-      // Load categories first
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .order('sort_order', { ascending: true })
-      
-      if (!categoriesError && categoriesData && categoriesData.length > 0) {
-        console.log('[TaskStore] Loaded categories:', categoriesData.length)
-        setCategories(categoriesData as CategoryRecord[])
-      } else {
-        console.log('[TaskStore] Using fallback categories (table may not exist yet)')
-        // Categories table might not exist yet - use fallback
-      }
+      console.log('[TaskStore] Loading tasks from Supabase...')
       
       // Load tasks
       const { data: tasksData, error: tasksError } = await supabase
@@ -117,8 +90,6 @@ export function useTaskStore() {
             taskId: log.task_id,
             startTime: new Date(log.start_at),
             timeLogId: log.id,
-            isPaused: false,
-            accumulatedSeconds: 0,
           }))
         )
       }
@@ -237,8 +208,7 @@ export function useTaskStore() {
     dueDate?: string | null,
     isStreak?: boolean
   ) => {
-    // Generate a unique ID: timestamp + random number to avoid collisions
-    const newId = Date.now() * 1000 + Math.floor(Math.random() * 1000)
+    const newId = Date.now()
     const newTask: Task = {
       id: newId,
       text,
@@ -668,19 +638,6 @@ export function useTaskStore() {
     })
   }, [tasks])
 
-  // Get project category names from loaded categories
-  const projectCategoryNames = useMemo(() => {
-    return categories
-      .filter(c => c.is_project)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map(c => c.name)
-  }, [categories])
-
-  // Get all category names
-  const allCategoryNames = useMemo(() => {
-    return categories.map(c => c.name)
-  }, [categories])
-
   // Group by category (excluding special categories and archived)
   const groupedByCategory = useMemo(() => {
     const filtered = activeTasks.filter(t => 
@@ -688,14 +645,14 @@ export function useTaskStore() {
       t.priority !== 'Quick Win' && 
       !t.pinned_to_today &&
       !isStreakTask(t) &&
-      projectCategoryNames.includes(t.category)
+      PROJECT_CATEGORIES.includes(t.category)
     )
     return filtered.reduce((acc, task) => {
       if (!acc[task.category]) acc[task.category] = []
       acc[task.category].push(task)
       return acc
     }, {} as Record<string, Task[]>)
-  }, [activeTasks, projectCategoryNames])
+  }, [activeTasks])
 
   // Group archived by category
   const archivedByCategory = useMemo(() => {
@@ -717,124 +674,6 @@ export function useTaskStore() {
     })
   }, [tasks])
 
-  // Category management functions
-  const createCategory = useCallback(async (name: string, color: string = 'slate', icon: string = 'folder'): Promise<{ success: boolean; error?: string }> => {
-    // Check if category already exists
-    if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-      return { success: false, error: `Category "${name}" already exists` }
-    }
-
-    const supabase = supabaseRef.current
-    if (!isConfigured || !supabase) {
-      // Add locally only
-      const newCategory: CategoryRecord = {
-        id: Date.now(),
-        name,
-        color,
-        icon,
-        sort_order: Math.max(...categories.map(c => c.sort_order)) + 1,
-        is_project: true,
-      }
-      setCategories(prev => [...prev, newCategory])
-      return { success: true }
-    }
-
-    try {
-      const newCategory = {
-        name,
-        color,
-        icon,
-        sort_order: Math.max(...categories.map(c => c.sort_order)) + 1,
-        is_project: true,
-      }
-
-      const { data, error } = await supabase
-        .from('categories')
-        .insert(newCategory)
-        .select()
-        .single()
-
-      if (error) {
-        console.error('[TaskStore] Failed to create category:', error)
-        return { success: false, error: error.message }
-      }
-
-      if (data) {
-        setCategories(prev => [...prev, data as CategoryRecord])
-      }
-
-      return { success: true }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      return { success: false, error: message }
-    }
-  }, [categories, isConfigured])
-
-  const deleteCategory = useCallback(async (categoryName: string): Promise<{ success: boolean; error?: string }> => {
-    // Don't allow deleting system categories
-    const category = categories.find(c => c.name === categoryName)
-    if (!category) {
-      return { success: false, error: `Category "${categoryName}" not found` }
-    }
-    if (!category.is_project) {
-      return { success: false, error: `Cannot delete system category "${categoryName}"` }
-    }
-
-    // Check if there are tasks in this category
-    const tasksInCategory = tasks.filter(t => t.category === categoryName)
-    if (tasksInCategory.length > 0) {
-      return { success: false, error: `Cannot delete category "${categoryName}" - it has ${tasksInCategory.length} task(s). Move or delete them first.` }
-    }
-
-    const supabase = supabaseRef.current
-    if (!isConfigured || !supabase) {
-      // Remove locally only
-      setCategories(prev => prev.filter(c => c.name !== categoryName))
-      return { success: true }
-    }
-
-    try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('name', categoryName)
-
-      if (error) {
-        console.error('[TaskStore] Failed to delete category:', error)
-        return { success: false, error: error.message }
-      }
-
-      setCategories(prev => prev.filter(c => c.name !== categoryName))
-      return { success: true }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      return { success: false, error: message }
-    }
-  }, [categories, tasks, isConfigured])
-
-  const updateCategoryOrder = useCallback(async (newOrder: string[]) => {
-    // Update local state immediately
-    setCategories(prev => {
-      const updated = [...prev]
-      newOrder.forEach((name, index) => {
-        const cat = updated.find(c => c.name === name)
-        if (cat) cat.sort_order = index
-      })
-      return updated.sort((a, b) => a.sort_order - b.sort_order)
-    })
-
-    const supabase = supabaseRef.current
-    if (isConfigured && supabase) {
-      // Update in database
-      for (let i = 0; i < newOrder.length; i++) {
-        await supabase
-          .from('categories')
-          .update({ sort_order: i })
-          .eq('name', newOrder[i])
-      }
-    }
-  }, [isConfigured])
-
   return {
     tasks,
     activeTasks,
@@ -843,14 +682,12 @@ export function useTaskStore() {
     loading,
     isConfigured,
     syncError,
-    // Task operations
     addTask,
     toggleTask,
     updateTask,
     deleteTask,
     pinToToday,
     updateDueDate,
-    // Timer operations
     startTimer,
     stopTimer,
     pauseTimer,
@@ -858,14 +695,6 @@ export function useTaskStore() {
     isTimerPaused,
     hasTimer,
     getActiveTimer,
-    // Category operations
-    categories,
-    projectCategoryNames,
-    allCategoryNames,
-    createCategory,
-    deleteCategory,
-    updateCategoryOrder,
-    // Computed values
     completedCount,
     totalCount,
     progress,

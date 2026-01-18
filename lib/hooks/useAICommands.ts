@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import type { Category, Priority, Task } from '@/lib/supabase/types'
+import { PROJECT_CATEGORIES, CATEGORIES } from '@/lib/supabase/types'
 
 // Types of commands the AI can understand
 export type CommandType = 
@@ -15,8 +16,6 @@ export type CommandType =
   | 'change_priority'     // Change priority
   | 'change_category'     // Move to different list
   | 'edit_text'           // Edit task text
-  | 'create_list'         // Create a new project list
-  | 'delete_list'         // Delete a project list
   | 'backend_required'    // Needs database changes
   | 'unknown'             // Can't understand
 
@@ -51,10 +50,6 @@ export interface AICommandResult {
     text?: string
     pinned?: boolean
   }
-  // For create_list / delete_list
-  listName?: string
-  listColor?: string
-  listIcon?: string
   // For backend_required
   backendMessage?: string
   // General
@@ -62,36 +57,22 @@ export interface AICommandResult {
   error?: string
 }
 
-// Dynamic system prompt builder
-function buildSystemPrompt(availableCategories: string[]): string {
-  return `You are a task management assistant optimized for people with ADHD/dyslexia. Interpret natural language commands.
+const COMMAND_SYSTEM_PROMPT = `You are a task management assistant that interprets natural language commands.
 
 AVAILABLE COMMANDS:
 1. ADD TASKS - Create new tasks
 2. MARK DONE - Complete tasks matching criteria  
 3. MARK UNDONE - Uncomplete tasks
-4. DELETE TASKS - Remove tasks matching criteria
+4. DELETE - Remove tasks matching criteria
 5. PIN TO TODAY - Pin tasks to Today focus list
 6. UNPIN FROM TODAY - Remove from Today list
 7. SET DUE DATE - Add/change due dates
 8. CHANGE PRIORITY - Update priority levels
-9. CHANGE CATEGORY - Move tasks between existing lists
+9. CHANGE CATEGORY - Move tasks between lists
 10. EDIT TEXT - Modify task text
-11. CREATE LIST - Create a new project list (returns type: "create_list")
-12. DELETE LIST - Delete an empty project list (returns type: "delete_list")
 
-CRITICAL - TASK TEXT FORMAT (for ADD TASKS):
-Each task "text" MUST follow: "EMOJI SHORT_TITLE\\nDESCRIPTION"
-- EMOJI: One relevant emoji at the start (📋, 🏢, 📞, 💼, 🔧, 📧, 🏠, 💰, 🎯, ✅, etc.)
-- SHORT_TITLE: 2-5 words maximum, action-oriented, easy to scan
-- \\n: Literal newline separating title from description
-- DESCRIPTION: The detailed context
-
-CURRENT PROJECT LISTS: ${availableCategories.join(', ')}
+AVAILABLE CATEGORIES (PROJECT LISTS): ${PROJECT_CATEGORIES.join(', ')}
 AVAILABLE PRIORITIES: Critical, Quick Win, High, Medium, Low
-
-AVAILABLE COLORS for new lists: slate, red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose
-AVAILABLE ICONS for new lists: folder, briefcase, user, code, target, star, heart, zap, flame, rocket, coffee, book, music, camera, mail, phone, home, settings, globe, award
 
 FILTER OPTIONS:
 - byPriority: ["Critical", "High", etc.]
@@ -100,29 +81,29 @@ FILTER OPTIONS:
 - byCompleted: true/false
 - all: true (for all tasks)
 
+BACKEND REQUIRED - Return this when user asks for:
+- Creating NEW project lists/categories
+- Adding new fields to tasks
+- Custom automations
+- Database structure changes
+- User management features
+
 Respond with ONLY valid JSON (no markdown). Example responses:
 
-For adding tasks (NOTICE THE \\n FORMAT):
-{"type":"add_tasks","tasks":[{"text":"📞 Call John\\nDiscuss meeting schedule and agenda","category":"Personal","priority":"High","duration":"15m"}],"message":"Adding 1 task to Personal"}
+For adding tasks:
+{"type":"add_tasks","tasks":[{"text":"Call John","category":"Personal","priority":"High","duration":"15m"}]}
 
 For bulk operations:
 {"type":"mark_done","filter":{"byPriority":["High","Critical"]},"message":"Marking all high priority and critical tasks as done"}
 
-For creating a new list:
-{"type":"create_list","listName":"Home Construction","listColor":"amber","listIcon":"home","message":"Creating new project list 'Home Construction'"}
-
-For deleting a list:
-{"type":"delete_list","listName":"Old Project","message":"Deleting project list 'Old Project'"}
-
-For moving tasks between lists:
-{"type":"change_category","filter":{"byCategory":["Personal"]},"newValue":{"category":"Sinjab"},"message":"Moving all Personal tasks to Sinjab"}
+For backend required:
+{"type":"backend_required","backendMessage":"Creating a new project list 'Home Construction' requires adding a new value to the task_category enum in PostgreSQL. Run: ALTER TYPE task_category ADD VALUE 'Home Construction';"}
 
 For unknown:
-{"type":"unknown","message":"I couldn't understand that command. Try: 'Add task...', 'Mark done...', 'Delete...', 'Create list...', etc."}
+{"type":"unknown","message":"I couldn't understand that command. Try: 'Add task...', 'Mark done...', 'Delete...', etc."}
 `
-}
 
-export function useAICommands(apiKey: string | null, availableCategories: string[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb']) {
+export function useAICommands(apiKey: string | null) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -138,8 +119,6 @@ export function useAICommands(apiKey: string | null, availableCategories: string
     setIsLoading(true)
     setError(null)
 
-    const systemPrompt = buildSystemPrompt(availableCategories)
-
     try {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -152,7 +131,7 @@ export function useAICommands(apiKey: string | null, availableCategories: string
             contents: [
               {
                 parts: [
-                  { text: systemPrompt },
+                  { text: COMMAND_SYSTEM_PROMPT },
                   { text: `Interpret this command: "${input}"` }
                 ]
               }
@@ -199,7 +178,7 @@ export function useAICommands(apiKey: string | null, availableCategories: string
         if (result.tasks) {
           result.tasks = result.tasks.map(t => ({
             text: t.text?.trim() || '',
-            category: validateCategory(t.category, availableCategories),
+            category: validateCategory(t.category),
             priority: validatePriority(t.priority),
             duration: t.duration || 'Unknown',
             dueDate: t.dueDate,
@@ -208,9 +187,8 @@ export function useAICommands(apiKey: string | null, availableCategories: string
 
         if (result.filter) {
           if (result.filter.byCategory) {
-            // Allow filtering by any category (existing or to be created)
             result.filter.byCategory = result.filter.byCategory.filter(c => 
-              typeof c === 'string' && c.length > 0
+              CATEGORIES.includes(c as Category)
             ) as Category[]
           }
           if (result.filter.byPriority) {
@@ -221,7 +199,7 @@ export function useAICommands(apiKey: string | null, availableCategories: string
         }
 
         if (result.newValue?.category) {
-          result.newValue.category = validateCategory(result.newValue.category, availableCategories)
+          result.newValue.category = validateCategory(result.newValue.category)
         }
         if (result.newValue?.priority) {
           result.newValue.priority = validatePriority(result.newValue.priority)
@@ -240,7 +218,7 @@ export function useAICommands(apiKey: string | null, availableCategories: string
     } finally {
       setIsLoading(false)
     }
-  }, [apiKey, availableCategories])
+  }, [apiKey])
 
   // Execute a command against the task list
   const getMatchingTasks = useCallback((tasks: Task[], filter: TaskFilter): Task[] => {
@@ -280,15 +258,9 @@ export function useAICommands(apiKey: string | null, availableCategories: string
   }
 }
 
-function validateCategory(category: string, availableCategories: string[]): Category {
-  // Accept any non-empty string - categories are now dynamic
-  if (typeof category === 'string' && category.trim().length > 0) {
-    // If it's an existing category, use it as-is
-    if (availableCategories.includes(category)) {
-      return category
-    }
-    // For new categories, return as-is (will be created)
-    return category.trim()
+function validateCategory(category: string): Category {
+  if (CATEGORIES.includes(category as Category)) {
+    return category as Category
   }
   return 'Personal'
 }
