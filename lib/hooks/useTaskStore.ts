@@ -90,6 +90,8 @@ export function useTaskStore() {
             taskId: log.task_id,
             startTime: new Date(log.start_at),
             timeLogId: log.id,
+            isPaused: false,
+            accumulatedSeconds: 0,
           }))
         )
       }
