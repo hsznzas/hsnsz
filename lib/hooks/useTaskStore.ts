@@ -235,7 +235,8 @@ export function useTaskStore() {
     dueDate?: string | null,
     isStreak?: boolean
   ) => {
-    const newId = Date.now()
+    // Generate a unique ID: timestamp + random number to avoid collisions
+    const newId = Date.now() * 1000 + Math.floor(Math.random() * 1000)
     const newTask: Task = {
       id: newId,
       text,
