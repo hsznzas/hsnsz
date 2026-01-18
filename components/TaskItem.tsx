@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Task, Category, Priority } from '@/lib/supabase/types'
 import { CATEGORIES, PRIORITIES } from '@/lib/supabase/types'
 import { CategoryBadge } from './CategoryBadge'
@@ -56,6 +56,167 @@ function formatTimeRemaining(dueDate: string): { text: string; isUrgent: boolean
 }
 
 const DURATION_OPTIONS = ['5 min', '10 min', '15 min', '30 min', '1 hour', '2 hours', 'Unknown']
+
+// Calendar Picker Component
+interface CalendarPickerProps {
+  selectedDate: Date | null
+  onSelectDate: (date: Date | null) => void
+  onClose: () => void
+  position: { top: number; left: number; placeAbove: boolean }
+}
+
+function CalendarPicker({ selectedDate, onSelectDate, onClose, position }: CalendarPickerProps) {
+  const [viewDate, setViewDate] = useState(() => selectedDate || new Date())
+  
+  const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate()
+  const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay()
+  
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December']
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const isToday = (day: number) => {
+    const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day)
+    return date.getTime() === today.getTime()
+  }
+  
+  const isSelected = (day: number) => {
+    if (!selectedDate) return false
+    const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day)
+    const selected = new Date(selectedDate)
+    selected.setHours(0, 0, 0, 0)
+    return date.getTime() === selected.getTime()
+  }
+  
+  const isPast = (day: number) => {
+    const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day)
+    return date < today
+  }
+  
+  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
+  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
+  
+  const selectDay = (day: number) => {
+    const date = new Date(viewDate.getFullYear(), viewDate.getMonth(), day)
+    onSelectDate(date)
+  }
+  
+  // Quick date options
+  const quickDates = [
+    { label: 'Today', date: new Date() },
+    { label: 'Tomorrow', date: new Date(Date.now() + 86400000) },
+    { label: 'Next Week', date: new Date(Date.now() + 7 * 86400000) },
+  ]
+  
+  return (
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 z-[9998]" 
+        onClick={(e) => { e.stopPropagation(); onClose() }}
+      />
+      {/* Calendar Popup */}
+      <div 
+        className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 w-[280px]"
+        style={{
+          top: position.placeAbove ? 'auto' : position.top,
+          bottom: position.placeAbove ? `${window.innerHeight - position.top + 8}px` : 'auto',
+          left: Math.max(8, Math.min(position.left - 100, window.innerWidth - 296)),
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with Month/Year Navigation */}
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={prevMonth}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">
+            {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+          </span>
+          <button
+            onClick={nextMonth}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* Day Names */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {dayNames.map(day => (
+            <div key={day} className="text-center text-[10px] font-medium text-slate-400 dark:text-slate-500 py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+        
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {/* Empty cells for days before first day of month */}
+          {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+            <div key={`empty-${i}`} className="w-8 h-8" />
+          ))}
+          
+          {/* Days of the month */}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1
+            const past = isPast(day)
+            const selected = isSelected(day)
+            const todayDay = isToday(day)
+            
+            return (
+              <button
+                key={day}
+                onClick={() => selectDay(day)}
+                disabled={past}
+                className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                  selected
+                    ? 'bg-blue-500 text-white'
+                    : todayDay
+                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 ring-1 ring-blue-300 dark:ring-blue-700'
+                      : past
+                        ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {day}
+              </button>
+            )
+          })}
+        </div>
+        
+        {/* Quick Date Options */}
+        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+          {quickDates.map(({ label, date }) => (
+            <button
+              key={label}
+              onClick={() => onSelectDate(date)}
+              className="flex-1 text-xs py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors font-medium"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        
+        {/* Clear Button */}
+        {selectedDate && (
+          <button
+            onClick={() => onSelectDate(null)}
+            className="mt-2 w-full text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded-lg transition-colors font-medium"
+          >
+            Clear Due Date
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
 
 export function TaskItem({ 
   task, 
@@ -399,52 +560,18 @@ export function TaskItem({
             </button>
             
             {showDatePicker && datePickerPos && (
-              <>
-                {/* Backdrop to close */}
-                <div 
-                  className="fixed inset-0 z-[9998]" 
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeDatePicker()
-                  }}
-                />
-                {/* Popup - FIXED positioning to escape any overflow constraints */}
-                <div 
-                  className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 p-3 min-w-[220px]"
-                  style={{
-                    top: datePickerPos.placeAbove ? 'auto' : datePickerPos.top,
-                    bottom: datePickerPos.placeAbove ? `${window.innerHeight - datePickerPos.top + 8}px` : 'auto',
-                    left: datePickerPos.left,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">Set Due Date</label>
-                  <input
-                    type="date"
-                    value={task.due_date ? task.due_date.slice(0, 10) : ''}
-                    onChange={(e) => {
-                      // Set due date to end of day (23:59:59)
-                      const dateValue = e.target.value 
-                        ? new Date(e.target.value + 'T23:59:59').toISOString() 
-                        : null
-                      onUpdateDueDate(task.id, dateValue)
-                      closeDatePicker()
-                    }}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {task.due_date && (
-                    <button
-                      onClick={() => {
-                        onUpdateDueDate(task.id, null)
-                        closeDatePicker()
-                      }}
-                      className="mt-2 w-full text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded-lg transition-colors"
-                    >
-                      Clear Due Date
-                    </button>
-                  )}
-                </div>
-              </>
+              <CalendarPicker
+                selectedDate={task.due_date ? new Date(task.due_date) : null}
+                onSelectDate={(date) => {
+                  const dateValue = date 
+                    ? new Date(date.setHours(23, 59, 59)).toISOString() 
+                    : null
+                  onUpdateDueDate(task.id, dateValue)
+                  closeDatePicker()
+                }}
+                onClose={closeDatePicker}
+                position={datePickerPos}
+              />
             )}
           </div>
         )}
