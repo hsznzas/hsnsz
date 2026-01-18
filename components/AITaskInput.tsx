@@ -358,7 +358,20 @@ export function AITaskInput({
                           +
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{task.text}</p>
+                          {/* Parse title and description from text (format: "EMOJI TITLE\nDESCRIPTION") */}
+                          {(() => {
+                            const parts = task.text.split('\n')
+                            const title = parts[0] || task.text
+                            const description = parts.slice(1).join('\n')
+                            return (
+                              <>
+                                <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{title}</p>
+                                {description && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 font-light mt-0.5">{description}</p>
+                                )}
+                              </>
+                            )
+                          })()}
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getCategoryColor(task.category)}`}>
                               {task.category}
@@ -430,7 +443,7 @@ export function AITaskInput({
                       >
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${task.completed ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                         <span className={`flex-1 truncate ${isDangerous ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {task.text}
+                          {task.text.split('\n')[0]}
                         </span>
                         <span className="text-[10px] text-slate-400">{task.category}</span>
                       </motion.div>

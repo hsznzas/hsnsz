@@ -164,10 +164,21 @@ export function InlineCategoryInput({ category, onAddTask, placeholder }: Inline
                       transition={{ delay: index * 0.05 }}
                       className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700"
                     >
-                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1.5">
-                        {task.text}
-                      </p>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      {/* Parse title and description from text (format: "EMOJI TITLE\nDESCRIPTION") */}
+                      {(() => {
+                        const parts = task.text.split('\n')
+                        const title = parts[0] || task.text
+                        const description = parts.slice(1).join('\n')
+                        return (
+                          <>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+                            {description && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 font-light mt-0.5 mb-1">{description}</p>
+                            )}
+                          </>
+                        )
+                      })()}
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>

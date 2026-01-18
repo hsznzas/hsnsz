@@ -291,15 +291,35 @@ export function TaskItem({
       
       {/* Content */}
       <div className="flex-1 min-w-0" onClick={() => onToggle(task.id)}>
-        <div className={`text-sm font-medium ${
-          task.completed 
-            ? 'line-through text-slate-400 dark:text-slate-500' 
-            : isUrgent 
-              ? 'text-red-600 dark:text-red-400' 
-              : 'text-slate-800 dark:text-slate-200'
-        }`}>
-          {task.text}
-        </div>
+        {/* Parse title and description from text (format: "EMOJI TITLE\nDESCRIPTION") */}
+        {(() => {
+          const parts = task.text.split('\n')
+          const title = parts[0] || task.text
+          const description = parts.slice(1).join('\n')
+          
+          return (
+            <>
+              <div className={`text-sm font-semibold ${
+                task.completed 
+                  ? 'line-through text-slate-400 dark:text-slate-500' 
+                  : isUrgent 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-slate-900 dark:text-slate-100'
+              }`}>
+                {title}
+              </div>
+              {description && (
+                <div className={`text-xs mt-0.5 ${
+                  task.completed 
+                    ? 'line-through text-slate-300 dark:text-slate-600' 
+                    : 'text-slate-500 dark:text-slate-400 font-light'
+                }`}>
+                  {description}
+                </div>
+              )}
+            </>
+          )
+        })()}
         
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {showCategory && <CategoryBadge category={task.category} />}

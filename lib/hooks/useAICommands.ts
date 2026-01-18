@@ -64,7 +64,7 @@ export interface AICommandResult {
 
 // Dynamic system prompt builder
 function buildSystemPrompt(availableCategories: string[]): string {
-  return `You are a task management assistant that interprets natural language commands.
+  return `You are a task management assistant optimized for people with ADHD/dyslexia. Interpret natural language commands.
 
 AVAILABLE COMMANDS:
 1. ADD TASKS - Create new tasks
@@ -79,6 +79,13 @@ AVAILABLE COMMANDS:
 10. EDIT TEXT - Modify task text
 11. CREATE LIST - Create a new project list (returns type: "create_list")
 12. DELETE LIST - Delete an empty project list (returns type: "delete_list")
+
+CRITICAL - TASK TEXT FORMAT (for ADD TASKS):
+Each task "text" MUST follow: "EMOJI SHORT_TITLE\\nDESCRIPTION"
+- EMOJI: One relevant emoji at the start (📋, 🏢, 📞, 💼, 🔧, 📧, 🏠, 💰, 🎯, ✅, etc.)
+- SHORT_TITLE: 2-5 words maximum, action-oriented, easy to scan
+- \\n: Literal newline separating title from description
+- DESCRIPTION: The detailed context
 
 CURRENT PROJECT LISTS: ${availableCategories.join(', ')}
 AVAILABLE PRIORITIES: Critical, Quick Win, High, Medium, Low
@@ -95,8 +102,8 @@ FILTER OPTIONS:
 
 Respond with ONLY valid JSON (no markdown). Example responses:
 
-For adding tasks:
-{"type":"add_tasks","tasks":[{"text":"Call John","category":"Personal","priority":"High","duration":"15m"}],"message":"Adding 1 task to Personal"}
+For adding tasks (NOTICE THE \\n FORMAT):
+{"type":"add_tasks","tasks":[{"text":"📞 Call John\\nDiscuss meeting schedule and agenda","category":"Personal","priority":"High","duration":"15m"}],"message":"Adding 1 task to Personal"}
 
 For bulk operations:
 {"type":"mark_done","filter":{"byPriority":["High","Critical"]},"message":"Marking all high priority and critical tasks as done"}

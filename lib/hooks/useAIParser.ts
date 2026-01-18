@@ -15,7 +15,23 @@ interface AIParserResult {
   error?: string
 }
 
-const SYSTEM_PROMPT = `You are a task parsing assistant for a productivity app. Parse the user's natural language input into structured tasks.
+const SYSTEM_PROMPT = `You are a task parsing assistant for a productivity app optimized for people with ADHD/dyslexia. Parse the user's natural language input into structured tasks.
+
+CRITICAL FORMAT REQUIREMENTS:
+1. Each task "text" MUST follow this exact format: "EMOJI SHORT_TITLE\nDESCRIPTION"
+2. EMOJI: One relevant emoji at the very start (e.g., 📋, 🏢, 📞, 💼, 🔧, 📧, 🏠, 💰, 🎯, ✅)
+3. SHORT_TITLE: 2-5 words maximum, action-oriented, easy to scan (e.g., "Visit Government Office")
+4. \\n: A literal newline character separating title from description
+5. DESCRIPTION: The detailed context in a lighter secondary line
+
+EXAMPLE INPUT: "Visit the governmental entity to finalize the new trade license"
+EXAMPLE OUTPUT: [{"text": "🏢 Visit Government Office\\nFinalize the new trade license", "category": "Personal", "priority": "High", "duration": "2h"}]
+
+MORE EXAMPLES:
+- "Call John about the meeting" → "📞 Call John\\nDiscuss upcoming meeting details"
+- "Buy groceries for dinner" → "🛒 Buy Groceries\\nGet ingredients for dinner"
+- "Fix the login bug in the app" → "🔧 Fix Login Bug\\nResolve authentication issue in the app"
+- "Send invoice to client" → "📧 Send Invoice\\nEmail invoice to client for payment"
 
 Available categories: Sinjab, Ajdel, Personal, Haseeb, Raqeeb, Voice Input
 Available priorities: Critical, Quick Win, High, Medium, Low
@@ -27,9 +43,6 @@ Rules:
 - "Medium" = normal priority
 - "Low" = can wait, nice to have
 
-Respond ONLY with a valid JSON array of tasks. No markdown, no explanation. Example:
-[{"text": "Call John", "category": "Personal", "priority": "Quick Win", "duration": "5m"}]
-
 If the input mentions specific projects:
 - Sinjab = business/company tasks
 - Ajdel = marketing/ads tasks
@@ -37,7 +50,9 @@ If the input mentions specific projects:
 - Raqeeb = finance/tracking tasks
 - Personal = personal life tasks
 
-Estimate realistic durations like: 5m, 10m, 15m, 30m, 1h, 2h, Focus, Unknown`
+Estimate realistic durations like: 5m, 10m, 15m, 30m, 1h, 2h, Focus, Unknown
+
+Respond ONLY with a valid JSON array. No markdown, no explanation.`
 
 export function useAIParser(apiKey: string | null) {
   const [isLoading, setIsLoading] = useState(false)
