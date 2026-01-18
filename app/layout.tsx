@@ -1,11 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: "The Super To Do List | ADHD-Optimized Hyper-Focus",
@@ -19,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={inter.className} suppressHydrationWarning>
+    <html lang="en" className="font-serif" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

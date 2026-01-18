@@ -10,7 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Times New Roman"', 'Times', 'Georgia', 'serif'],
+        serif: ['"Times New Roman"', 'Times', 'Georgia', 'serif'],
       },
     },
   },
