@@ -8,9 +8,9 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Today's Command Center | ADHD Task Tracker",
-  description: 'High-performance task tracking system optimized for ADHD. Focus on Critical items first, then use Quick Wins to build momentum.',
-  keywords: ['task tracker', 'ADHD', 'productivity', 'time tracking'],
+  title: "The Super To Do List | ADHD-Optimized Hyper-Focus",
+  description: 'The ultimate task management system for ADHD minds. Today view, streaks, time tracking, and hyper-focus architecture.',
+  keywords: ['task tracker', 'ADHD', 'productivity', 'time tracking', 'hyper-focus', 'streaks'],
 }
 
 export default function RootLayout({

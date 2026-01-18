@@ -1,20 +1,35 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Task, TimeLog, Category, Priority } from '@/lib/supabase/types'
-import { INITIAL_TASKS } from '@/lib/supabase/types'
+import type { Task, TimeLog, Category, Priority, CategoryRecord } from '@/lib/supabase/types'
+import { INITIAL_TASKS, DEFAULT_PROJECT_CATEGORIES, DEFAULT_CATEGORIES } from '@/lib/supabase/types'
 
 export interface ActiveTimer {
   taskId: number
   startTime: Date
   timeLogId?: string
+  isPaused: boolean
+  accumulatedSeconds: number  // Time accumulated before pause
 }
+
+// Default categories when database doesn't have the categories table yet
+const FALLBACK_CATEGORIES: CategoryRecord[] = [
+  { id: 1, name: 'Sinjab', color: 'purple', icon: 'briefcase', sort_order: 1, is_project: true },
+  { id: 2, name: 'Ajdel', color: 'blue', icon: 'rocket', sort_order: 2, is_project: true },
+  { id: 3, name: 'Personal', color: 'green', icon: 'user', sort_order: 3, is_project: true },
+  { id: 4, name: 'Haseeb', color: 'orange', icon: 'code', sort_order: 4, is_project: true },
+  { id: 5, name: 'Raqeeb', color: 'pink', icon: 'target', sort_order: 5, is_project: true },
+  { id: 6, name: 'Voice Input', color: 'indigo', icon: 'mic', sort_order: 100, is_project: false },
+  { id: 7, name: 'Today', color: 'amber', icon: 'sun', sort_order: 101, is_project: false },
+  { id: 8, name: 'Streaks', color: 'emerald', icon: 'flame', sort_order: 102, is_project: false },
+]
 
 export function useTaskStore() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
   const [activeTimers, setActiveTimers] = useState<ActiveTimer[]>([])
+  const [categories, setCategories] = useState<CategoryRecord[]>(FALLBACK_CATEGORIES)
   const [loading, setLoading] = useState(true)
   const [isConfigured, setIsConfigured] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -46,7 +61,21 @@ export function useTaskStore() {
     try {
       setLoading(true)
       setSyncError(null)
-      console.log('[TaskStore] Loading tasks from Supabase...')
+      console.log('[TaskStore] Loading data from Supabase...')
+      
+      // Load categories first
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order', { ascending: true })
+      
+      if (!categoriesError && categoriesData && categoriesData.length > 0) {
+        console.log('[TaskStore] Loaded categories:', categoriesData.length)
+        setCategories(categoriesData as CategoryRecord[])
+      } else {
+        console.log('[TaskStore] Using fallback categories (table may not exist yet)')
+        // Categories table might not exist yet - use fallback
+      }
       
       // Load tasks
       const { data: tasksData, error: tasksError } = await supabase
@@ -202,7 +231,9 @@ export function useTaskStore() {
     text: string,
     category: Category = 'Voice Input',
     priority: Priority = 'Quick Win',
-    duration: string = 'Unknown'
+    duration: string = 'Unknown',
+    dueDate?: string | null,
+    isStreak?: boolean
   ) => {
     const newId = Date.now()
     const newTask: Task = {
@@ -212,6 +243,10 @@ export function useTaskStore() {
       priority,
       duration,
       completed: false,
+      due_date: dueDate || null,
+      is_streak: isStreak || false,
+      pinned_to_today: false,
+      created_at: new Date().toISOString(),
     }
 
     // Optimistic update
@@ -221,14 +256,20 @@ export function useTaskStore() {
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       console.log('[TaskStore] Adding task to Supabase:', newTask.text)
-      const { error } = await supabase.from('tasks').insert({
+      
+      // Build insert object with only basic columns first
+      // The new columns (due_date, is_streak, pinned_to_today, completed_at) may not exist yet
+      const insertData: Record<string, unknown> = {
         id: newId,
         text,
         category,
         priority,
         duration,
         completed: false,
-      })
+      }
+
+      const { error } = await supabase.from('tasks').insert(insertData)
+      
       if (error) {
         console.error('[TaskStore] Failed to add task:', error)
         setSyncError(`Add failed: ${error.message}`)
@@ -240,17 +281,24 @@ export function useTaskStore() {
     }
   }, [isConfigured])
 
+  // Toggle task with TIMER FIX - stops timer immediately on completion
   const toggleTask = useCallback(async (taskId: number) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
 
     const completed = !task.completed
+    const completedAt = completed ? new Date().toISOString() : null
     console.log('[TaskStore] Toggling task', taskId, 'to completed:', completed)
+
+    // 🐞 TIMER BUG FIX: Stop any active timer immediately when completing
+    if (completed && activeTimers.some(t => t.taskId === taskId)) {
+      await stopTimer(taskId)
+    }
 
     // Optimistic update
     setTasks(prev =>
       prev.map(t =>
-        t.id === taskId ? { ...t, completed } : t
+        t.id === taskId ? { ...t, completed, completed_at: completedAt } : t
       )
     )
     setSyncError(null)
@@ -258,6 +306,7 @@ export function useTaskStore() {
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       console.log('[TaskStore] Updating task in Supabase...')
+      // Only update 'completed' - completed_at may not exist in the schema
       const { data, error } = await supabase
         .from('tasks')
         .update({ completed })
@@ -270,7 +319,7 @@ export function useTaskStore() {
         // Rollback
         setTasks(prev =>
           prev.map(t =>
-            t.id === taskId ? { ...t, completed: !completed } : t
+            t.id === taskId ? { ...t, completed: !completed, completed_at: task.completed_at } : t
           )
         )
         return !completed // Return old state
@@ -280,11 +329,113 @@ export function useTaskStore() {
     }
 
     return completed
+  }, [tasks, isConfigured, activeTimers])
+
+  // Pin task to Today
+  const pinToToday = useCallback(async (taskId: number, pinned: boolean) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    // Optimistic update
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, pinned_to_today: pinned } : t
+      )
+    )
+    setSyncError(null)
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ pinned_to_today: pinned })
+        .eq('id', taskId)
+      
+      if (error) {
+        console.error('[TaskStore] Failed to pin task:', error)
+        setSyncError(`Pin failed: ${error.message}`)
+        // Rollback
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === taskId ? { ...t, pinned_to_today: task.pinned_to_today } : t
+          )
+        )
+      }
+    }
+  }, [tasks, isConfigured])
+
+  // Update due date
+  const updateDueDate = useCallback(async (taskId: number, dueDate: string | null) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    // Optimistic update
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, due_date: dueDate } : t
+      )
+    )
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ due_date: dueDate })
+        .eq('id', taskId)
+      
+      if (error) {
+        console.error('[TaskStore] Failed to update due date:', error)
+        // Rollback
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === taskId ? { ...t, due_date: task.due_date } : t
+          )
+        )
+      }
+    }
+  }, [tasks, isConfigured])
+
+  // Update task (edit text, category, priority, duration, streak_target)
+  const updateTask = useCallback(async (taskId: number, updates: Partial<Pick<Task, 'text' | 'category' | 'priority' | 'duration' | 'streak_target'>>) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+
+    // Optimistic update
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, ...updates } : t
+      )
+    )
+    setSyncError(null)
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      const { error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+      
+      if (error) {
+        console.error('[TaskStore] Failed to update task:', error)
+        setSyncError(`Update failed: ${error.message}`)
+        // Rollback
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === taskId ? task : t
+          )
+        )
+      }
+    }
   }, [tasks, isConfigured])
 
   const deleteTask = useCallback(async (taskId: number) => {
     const taskToDelete = tasks.find(t => t.id === taskId)
     
+    // Stop timer first if running
+    if (activeTimers.some(t => t.taskId === taskId)) {
+      await stopTimer(taskId)
+    }
+
     // Optimistic update
     setTasks(prev => prev.filter(t => t.id !== taskId))
     setSyncError(null)
@@ -301,16 +452,31 @@ export function useTaskStore() {
         }
       }
     }
-
-    stopTimer(taskId)
-  }, [isConfigured, tasks])
+  }, [isConfigured, tasks, activeTimers])
 
   // Timer operations
   const startTimer = useCallback(async (taskId: number) => {
-    if (activeTimers.some(t => t.taskId === taskId)) return
+    console.log('[TaskStore] startTimer called for taskId:', taskId)
+    
+    // Check if timer exists and is paused - if so, resume it
+    const existingTimer = activeTimers.find(t => t.taskId === taskId)
+    if (existingTimer) {
+      if (existingTimer.isPaused) {
+        console.log('[TaskStore] Resuming paused timer for taskId:', taskId)
+        setActiveTimers(prev => prev.map(t => 
+          t.taskId === taskId 
+            ? { ...t, isPaused: false, startTime: new Date() }
+            : t
+        ))
+        return
+      }
+      console.log('[TaskStore] Timer already running for taskId:', taskId)
+      return
+    }
 
     const startTime = new Date()
     const timeLogId = crypto.randomUUID()
+    console.log('[TaskStore] Starting new timer with ID:', timeLogId)
     
     const newLog: TimeLog = {
       id: timeLogId,
@@ -318,7 +484,13 @@ export function useTaskStore() {
       start_at: startTime.toISOString(),
     }
     setTimeLogs(prev => [newLog, ...prev])
-    setActiveTimers(prev => [...prev, { taskId, startTime, timeLogId }])
+    setActiveTimers(prev => [...prev, { 
+      taskId, 
+      startTime, 
+      timeLogId,
+      isPaused: false,
+      accumulatedSeconds: 0
+    }])
 
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
@@ -342,40 +514,105 @@ export function useTaskStore() {
       }
     }
   }, [isConfigured, activeTimers])
+  
+  // Pause timer - saves accumulated time in memory
+  const pauseTimer = useCallback((taskId: number) => {
+    console.log('[TaskStore] pauseTimer called for taskId:', taskId)
+    
+    const timer = activeTimers.find(t => t.taskId === taskId)
+    if (!timer || timer.isPaused) {
+      console.log('[TaskStore] No active timer to pause for taskId:', taskId)
+      return
+    }
+    
+    const now = new Date()
+    const sessionSeconds = Math.floor((now.getTime() - timer.startTime.getTime()) / 1000)
+    const newAccumulated = timer.accumulatedSeconds + sessionSeconds
+    
+    console.log('[TaskStore] Pausing timer, accumulated:', newAccumulated, 'seconds')
+    
+    setActiveTimers(prev => prev.map(t => 
+      t.taskId === taskId 
+        ? { ...t, isPaused: true, accumulatedSeconds: newAccumulated }
+        : t
+    ))
+  }, [activeTimers])
 
   const stopTimer = useCallback(async (taskId: number) => {
+    console.log('[TaskStore] stopTimer called for taskId:', taskId)
+    console.log('[TaskStore] Current activeTimers:', activeTimers)
+    
     const timer = activeTimers.find(t => t.taskId === taskId)
-    if (!timer) return
+    if (!timer) {
+      console.log('[TaskStore] No active timer found for taskId:', taskId)
+      return
+    }
 
+    console.log('[TaskStore] Found timer:', timer)
     const endTime = new Date()
+    
+    // Calculate total duration: accumulated time + current session (if not paused)
+    let totalSeconds = timer.accumulatedSeconds
+    if (!timer.isPaused) {
+      totalSeconds += Math.floor((endTime.getTime() - timer.startTime.getTime()) / 1000)
+    }
+    console.log('[TaskStore] Total duration:', totalSeconds, 'seconds')
 
     setTimeLogs(prev =>
       prev.map(l =>
-        l.id === timer.timeLogId ? { ...l, end_at: endTime.toISOString() } : l
+        l.id === timer.timeLogId ? { ...l, end_at: endTime.toISOString(), duration_seconds: totalSeconds } : l
       )
     )
-    setActiveTimers(prev => prev.filter(t => t.taskId !== taskId))
+    setActiveTimers(prev => {
+      const newTimers = prev.filter(t => t.taskId !== taskId)
+      console.log('[TaskStore] New activeTimers after stop:', newTimers)
+      return newTimers
+    })
 
     const supabase = supabaseRef.current
     if (isConfigured && supabase && timer.timeLogId) {
+      // Try to update with duration_seconds first
       const { error } = await supabase
         .from('time_logs')
-        .update({ end_at: endTime.toISOString() })
+        .update({ end_at: endTime.toISOString(), duration_seconds: totalSeconds })
         .eq('id', timer.timeLogId)
       
       if (error) {
-        console.error('[TaskStore] Failed to stop timer:', error)
-        setTimeLogs(prev =>
-          prev.map(l =>
-            l.id === timer.timeLogId ? { ...l, end_at: undefined } : l
+        // If duration_seconds column doesn't exist, try without it
+        if (error.message?.includes('duration_seconds')) {
+          console.warn('[TaskStore] duration_seconds column not found, updating without it')
+          const { error: fallbackError } = await supabase
+            .from('time_logs')
+            .update({ end_at: endTime.toISOString() })
+            .eq('id', timer.timeLogId)
+          
+          if (fallbackError) {
+            console.error('[TaskStore] Failed to stop timer (fallback):', fallbackError)
+          }
+        } else {
+          console.error('[TaskStore] Failed to stop timer:', error)
+          setTimeLogs(prev =>
+            prev.map(l =>
+              l.id === timer.timeLogId ? { ...l, end_at: undefined, duration_seconds: undefined } : l
+            )
           )
-        )
-        setActiveTimers(prev => [...prev, timer])
+          setActiveTimers(prev => [...prev, timer])
+        }
       }
     }
   }, [activeTimers, isConfigured])
 
   const isTimerActive = useCallback((taskId: number) => {
+    const timer = activeTimers.find(t => t.taskId === taskId)
+    return timer ? !timer.isPaused : false
+  }, [activeTimers])
+  
+  const isTimerPaused = useCallback((taskId: number) => {
+    const timer = activeTimers.find(t => t.taskId === taskId)
+    return timer?.isPaused ?? false
+  }, [activeTimers])
+  
+  const hasTimer = useCallback((taskId: number) => {
     return activeTimers.some(t => t.taskId === taskId)
   }, [activeTimers])
 
@@ -384,39 +621,258 @@ export function useTaskStore() {
   }, [activeTimers])
 
   // Computed values
-  const completedCount = tasks.filter(t => t.completed).length
-  const totalCount = tasks.length
+  const completedCount = tasks.filter(t => t.completed && !t.is_streak).length
+  const totalCount = tasks.filter(t => !t.is_streak).length
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
-  const criticalTasks = tasks.filter(t => t.priority === 'Critical')
-  const quickWins = tasks.filter(t => t.priority === 'Quick Win')
-  const otherTasks = tasks.filter(t => t.priority !== 'Critical' && t.priority !== 'Quick Win')
+  // Helper to check if task is a streak task
+  const isStreakTask = (t: Task) => t.is_streak || t.category === 'Streaks'
 
-  const groupedByCategory = otherTasks.reduce((acc, task) => {
-    if (!acc[task.category]) acc[task.category] = []
-    acc[task.category].push(task)
-    return acc
-  }, {} as Record<string, Task[]>)
+  // Today's tasks (pinned or Critical priority)
+  const todayTasks = useMemo(() => 
+    tasks.filter(t => t.pinned_to_today && !t.completed && !isStreakTask(t))
+  , [tasks])
+
+  // Critical tasks (Must Do Now)
+  const criticalTasks = useMemo(() => 
+    tasks.filter(t => t.priority === 'Critical' && !t.completed && !isStreakTask(t))
+  , [tasks])
+
+  // Quick wins
+  const quickWins = useMemo(() => 
+    tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !isStreakTask(t))
+  , [tasks])
+
+  // Streak tasks - include both is_streak flag AND category === 'Streaks'
+  const streakTasks = useMemo(() => 
+    tasks.filter(t => isStreakTask(t))
+  , [tasks])
+
+  // Archive - ALL completed tasks (history)
+  const archivedTasks = useMemo(() => {
+    return tasks.filter(t => t.completed && !isStreakTask(t))
+  }, [tasks])
+
+  // Active (non-archived) tasks
+  const activeTasks = useMemo(() => {
+    const now = new Date()
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    return tasks.filter(t => {
+      if (!t.completed) return true
+      if (!t.completed_at) return true
+      const completedDate = new Date(t.completed_at)
+      return completedDate >= twentyFourHoursAgo
+    })
+  }, [tasks])
+
+  // Get project category names from loaded categories
+  const projectCategoryNames = useMemo(() => {
+    return categories
+      .filter(c => c.is_project)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(c => c.name)
+  }, [categories])
+
+  // Get all category names
+  const allCategoryNames = useMemo(() => {
+    return categories.map(c => c.name)
+  }, [categories])
+
+  // Group by category (excluding special categories and archived)
+  const groupedByCategory = useMemo(() => {
+    const filtered = activeTasks.filter(t => 
+      t.priority !== 'Critical' && 
+      t.priority !== 'Quick Win' && 
+      !t.pinned_to_today &&
+      !isStreakTask(t) &&
+      projectCategoryNames.includes(t.category)
+    )
+    return filtered.reduce((acc, task) => {
+      if (!acc[task.category]) acc[task.category] = []
+      acc[task.category].push(task)
+      return acc
+    }, {} as Record<string, Task[]>)
+  }, [activeTasks, projectCategoryNames])
+
+  // Group archived by category
+  const archivedByCategory = useMemo(() => {
+    return archivedTasks.reduce((acc, task) => {
+      if (!acc[task.category]) acc[task.category] = []
+      acc[task.category].push(task)
+      return acc
+    }, {} as Record<string, Task[]>)
+  }, [archivedTasks])
+
+  // Tasks with upcoming due dates
+  const urgentTasks = useMemo(() => {
+    const now = new Date()
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    return tasks.filter(t => {
+      if (!t.due_date || t.completed) return false
+      const dueDate = new Date(t.due_date)
+      return dueDate <= twentyFourHoursFromNow && dueDate >= now
+    })
+  }, [tasks])
+
+  // Category management functions
+  const createCategory = useCallback(async (name: string, color: string = 'slate', icon: string = 'folder'): Promise<{ success: boolean; error?: string }> => {
+    // Check if category already exists
+    if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      return { success: false, error: `Category "${name}" already exists` }
+    }
+
+    const supabase = supabaseRef.current
+    if (!isConfigured || !supabase) {
+      // Add locally only
+      const newCategory: CategoryRecord = {
+        id: Date.now(),
+        name,
+        color,
+        icon,
+        sort_order: Math.max(...categories.map(c => c.sort_order)) + 1,
+        is_project: true,
+      }
+      setCategories(prev => [...prev, newCategory])
+      return { success: true }
+    }
+
+    try {
+      const newCategory = {
+        name,
+        color,
+        icon,
+        sort_order: Math.max(...categories.map(c => c.sort_order)) + 1,
+        is_project: true,
+      }
+
+      const { data, error } = await supabase
+        .from('categories')
+        .insert(newCategory)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[TaskStore] Failed to create category:', error)
+        return { success: false, error: error.message }
+      }
+
+      if (data) {
+        setCategories(prev => [...prev, data as CategoryRecord])
+      }
+
+      return { success: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return { success: false, error: message }
+    }
+  }, [categories, isConfigured])
+
+  const deleteCategory = useCallback(async (categoryName: string): Promise<{ success: boolean; error?: string }> => {
+    // Don't allow deleting system categories
+    const category = categories.find(c => c.name === categoryName)
+    if (!category) {
+      return { success: false, error: `Category "${categoryName}" not found` }
+    }
+    if (!category.is_project) {
+      return { success: false, error: `Cannot delete system category "${categoryName}"` }
+    }
+
+    // Check if there are tasks in this category
+    const tasksInCategory = tasks.filter(t => t.category === categoryName)
+    if (tasksInCategory.length > 0) {
+      return { success: false, error: `Cannot delete category "${categoryName}" - it has ${tasksInCategory.length} task(s). Move or delete them first.` }
+    }
+
+    const supabase = supabaseRef.current
+    if (!isConfigured || !supabase) {
+      // Remove locally only
+      setCategories(prev => prev.filter(c => c.name !== categoryName))
+      return { success: true }
+    }
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('name', categoryName)
+
+      if (error) {
+        console.error('[TaskStore] Failed to delete category:', error)
+        return { success: false, error: error.message }
+      }
+
+      setCategories(prev => prev.filter(c => c.name !== categoryName))
+      return { success: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return { success: false, error: message }
+    }
+  }, [categories, tasks, isConfigured])
+
+  const updateCategoryOrder = useCallback(async (newOrder: string[]) => {
+    // Update local state immediately
+    setCategories(prev => {
+      const updated = [...prev]
+      newOrder.forEach((name, index) => {
+        const cat = updated.find(c => c.name === name)
+        if (cat) cat.sort_order = index
+      })
+      return updated.sort((a, b) => a.sort_order - b.sort_order)
+    })
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      // Update in database
+      for (let i = 0; i < newOrder.length; i++) {
+        await supabase
+          .from('categories')
+          .update({ sort_order: i })
+          .eq('name', newOrder[i])
+      }
+    }
+  }, [isConfigured])
 
   return {
     tasks,
+    activeTasks,
     timeLogs,
     activeTimers,
     loading,
     isConfigured,
     syncError,
+    // Task operations
     addTask,
     toggleTask,
+    updateTask,
     deleteTask,
+    pinToToday,
+    updateDueDate,
+    // Timer operations
     startTimer,
     stopTimer,
+    pauseTimer,
     isTimerActive,
+    isTimerPaused,
+    hasTimer,
     getActiveTimer,
+    // Category operations
+    categories,
+    projectCategoryNames,
+    allCategoryNames,
+    createCategory,
+    deleteCategory,
+    updateCategoryOrder,
+    // Computed values
     completedCount,
     totalCount,
     progress,
+    todayTasks,
     criticalTasks,
     quickWins,
+    streakTasks,
+    archivedTasks,
+    archivedByCategory,
     groupedByCategory,
+    urgentTasks,
   }
 }
