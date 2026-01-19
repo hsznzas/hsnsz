@@ -48,13 +48,8 @@ export function InlineCategoryInput({ category, onAddTask, placeholder }: Inline
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
 
-    // If no API key, prompt to add one OR just add as single task
     if (!hasApiKey) {
-      // Fallback: add as single task without AI parsing
-      onAddTask(input.trim(), category, 'Medium', 'Unknown')
-      setInput('')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 1500)
+      setIsKeyModalOpen(true)
       return
     }
 
@@ -69,11 +64,8 @@ export function InlineCategoryInput({ category, onAddTask, placeholder }: Inline
       }))
       setParsedTasks(tasksWithCategory)
     } else if (result.error) {
-      // If AI fails, add as single task
-      onAddTask(input.trim(), category, 'Medium', 'Unknown')
-      setInput('')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 1500)
+      // Keep input for correction when AI fails
+      return
     }
   }
 

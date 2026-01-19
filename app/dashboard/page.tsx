@@ -491,7 +491,6 @@ export default function ProductivityDashboard() {
                         key={task.id} 
                         task={task} 
                         onToggle={handleToggle}
-                        onToggleWaiting={toggleWaitingForReply}
                         onUpdateTask={updateTask}
                         onDeleteTask={deleteTask}
                       />
