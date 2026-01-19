@@ -1,5 +1,5 @@
 export type Priority = 'Critical' | 'Quick Win' | 'High' | 'Medium' | 'Low'
-export type Category = 'Sinjab' | 'Ajdel' | 'Personal' | 'Haseeb' | 'Raqeeb' | 'Voice Input' | 'Today' | 'Streaks'
+export type Category = 'Sinjab' | 'Ajdel' | 'Personal' | 'Haseeb' | 'Raqeeb' | 'Home Construction' | 'Voice Input' | 'Today' | 'Streaks'
 
 export interface Task {
   id: number
@@ -9,6 +9,7 @@ export interface Task {
   duration: string
   completed: boolean
   waiting_for_reply?: boolean
+  waiting_since?: string | null
   created_at?: string
   updated_at?: string
   completed_at?: string | null
@@ -36,6 +37,7 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   'Personal': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300',
   'Haseeb': 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300',
   'Raqeeb': 'bg-pink-100 dark:bg-pink-900/40 text-pink-800 dark:text-pink-300',
+  'Home Construction': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
   'Voice Input': 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300',
   'Today': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
   'Streaks': 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
@@ -51,10 +53,10 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
 }
 
 // Project categories (excluding special categories)
-export const PROJECT_CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb']
+export const PROJECT_CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Home Construction']
 
 // All categories for edit dropdown
-export const CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input', 'Today', 'Streaks']
+export const CATEGORIES: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Home Construction', 'Voice Input', 'Today', 'Streaks']
 
 // All priorities for edit dropdown
 export const PRIORITIES: Priority[] = ['Critical', 'Quick Win', 'High', 'Medium', 'Low']

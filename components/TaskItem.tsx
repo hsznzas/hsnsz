@@ -56,6 +56,24 @@ function formatTimeRemaining(dueDate: string): { text: string; isUrgent: boolean
   }
 }
 
+function formatWaitingElapsed(sinceIso: string, nowMs: number): string {
+  const sinceMs = new Date(sinceIso).getTime()
+  if (Number.isNaN(sinceMs)) return '0m'
+  const diffMs = Math.max(nowMs - sinceMs, 0)
+  const totalMinutes = Math.floor(diffMs / (1000 * 60))
+  const totalHours = Math.floor(totalMinutes / 60)
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+
+  if (days > 0) {
+    return `${days}d ${hours}h`
+  }
+  if (totalHours > 0) {
+    return `${totalHours}h`
+  }
+  return `${Math.max(totalMinutes, 1)}m`
+}
+
 const DURATION_OPTIONS = ['5 min', '10 min', '15 min', '30 min', '1 hour', '2 hours', 'Unknown']
 
 export function TaskItem({ 
@@ -88,6 +106,7 @@ export function TaskItem({
   const [editPriority, setEditPriority] = useState<Priority>(task.priority)
   const [editDuration, setEditDuration] = useState(task.duration)
   const [showShimmer, setShowShimmer] = useState(isNew)
+  const [nowTs, setNowTs] = useState(() => Date.now())
   
   const dateButtonRef = useRef<HTMLButtonElement>(null)
   
@@ -150,6 +169,14 @@ export function TaskItem({
     }
   }, [isTimerActive, isTimerPaused, timerStartTime, accumulatedSeconds])
 
+  useEffect(() => {
+    if (!task.waiting_for_reply || !task.waiting_since) return
+    const interval = setInterval(() => {
+      setNowTs(Date.now())
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [task.waiting_for_reply, task.waiting_since])
+
   // Calculate due date urgency
   const dueInfo = useMemo(() => {
     if (!task.due_date || task.completed) return null
@@ -158,6 +185,10 @@ export function TaskItem({
 
   const isUrgent = dueInfo?.isUrgent && !task.completed
   const isWaiting = task.waiting_for_reply && !task.completed
+  const waitingElapsed = useMemo(() => {
+    if (!task.waiting_for_reply || !task.waiting_since) return null
+    return formatWaitingElapsed(task.waiting_since, nowTs)
+  }, [task.waiting_for_reply, task.waiting_since, nowTs])
 
   const handleSaveEdit = () => {
     if (onUpdateTask && editText.trim()) {
@@ -363,6 +394,12 @@ export function TaskItem({
           {task.priority === "High" && !task.completed && (
             <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40 px-1.5 py-0.5 rounded">
               High Priority
+            </span>
+          )}
+
+          {waitingElapsed && (
+            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">
+              Waiting {waitingElapsed}
             </span>
           )}
 

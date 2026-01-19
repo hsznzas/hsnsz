@@ -37,6 +37,14 @@ Available categories: Sinjab, Ajdel, Personal, Haseeb, Raqeeb, Voice Input
 Available priorities: Critical, Quick Win, High, Medium, Low
 
 Rules:
+- **CHECK FOR MULTIPLE TASKS:** If the input contains multiple lines or is a list, generate a separate task object for each one.
+- **SMART TITLES:**
+  - If the input is **SHORT** (< 10 words): Use it as the title directly. No description needed.
+  - If the input is **LONG** (> 10 words): Create a **SHORT, PUNCHY TITLE** (2-5 words) that summarizes the action, and put the original details in the description.
+  - **Example Long:** "I need to call the bank to discuss the mortgage rates for the new house"
+    -> Title: "📞 Call Bank", Description: "Discuss mortgage rates for the new house"
+  - **Example Short:** "Buy milk"
+    -> Title: "🛒 Buy milk", Description: ""
 - "Critical" = urgent, must do now, important deadlines
 - "Quick Win" = tasks under 15 minutes, easy wins
 - "High" = important but not immediate
@@ -103,10 +111,10 @@ export function useAIParser(apiKey: string | null) {
       }
 
       const data = await response.json()
-      
+
       // Extract text from Gemini response
       const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
-      
+
       if (!textContent) {
         setError('No response from AI')
         return { tasks: [], error: 'No response from AI' }
@@ -114,7 +122,7 @@ export function useAIParser(apiKey: string | null) {
 
       // Parse JSON from response (handle potential markdown code blocks)
       let jsonStr = textContent.trim()
-      
+
       // Remove markdown code blocks if present
       if (jsonStr.startsWith('```json')) {
         jsonStr = jsonStr.slice(7)
@@ -128,7 +136,7 @@ export function useAIParser(apiKey: string | null) {
 
       try {
         const tasks = JSON.parse(jsonStr) as ParsedTask[]
-        
+
         // Validate and sanitize tasks
         const validTasks = tasks
           .filter(t => t.text && typeof t.text === 'string')

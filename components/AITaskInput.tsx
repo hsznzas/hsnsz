@@ -19,7 +19,7 @@ import {
   Info
 } from 'lucide-react'
 import { useLocalAPIKey } from '@/lib/hooks/useLocalAPIKey'
-import { useAICommands, AICommandResult, ParsedTask, TaskFilter } from '@/lib/hooks/useAICommands'
+import { useAICommands, AICommandResult, ParsedTask, TaskFilter, TaskTextUpdate } from '@/lib/hooks/useAICommands'
 import { APIKeyModal } from './APIKeyModal'
 import type { Category, Priority, Task } from '@/lib/supabase/types'
 
@@ -51,7 +51,8 @@ export function AITaskInput({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { apiKey, setApiKey, clearApiKey, hasApiKey } = useLocalAPIKey()
-  const { parseCommand, getMatchingTasks, isLoading, error } = useAICommands(apiKey)
+  const { parseCommand, getMatchingTasks, generateTextTransforms, isLoading, error } = useAICommands(apiKey)
+  const [textUpdates, setTextUpdates] = useState<TaskTextUpdate[]>([])
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return
@@ -68,6 +69,12 @@ export function AITaskInput({
     if (result.filter && result.type !== 'add_tasks') {
       const matches = getMatchingTasks(tasks, result.filter)
       setMatchingTasks(matches)
+
+      // For edit_text with textTransform, generate AI transformations
+      if (result.type === 'edit_text' && result.textTransform && matches.length > 0) {
+        const updates = await generateTextTransforms(matches, result.textTransform)
+        setTextUpdates(updates)
+      }
     }
   }
 
@@ -128,6 +135,21 @@ export function AITaskInput({
         }
         break
 
+      case 'edit_text':
+        // Handle bulk AI text transformations
+        if (textUpdates.length > 0) {
+          textUpdates.forEach(update => {
+            onUpdateTask(update.id, { text: update.newText })
+          })
+          showSuccessToast(`Updated text for ${textUpdates.length} task(s)!`)
+        }
+        // Handle single task direct text edit
+        else if (commandResult.newValue?.text && matchingTasks.length > 0) {
+          matchingTasks.forEach(t => onUpdateTask(t.id, { text: commandResult.newValue!.text! }))
+          showSuccessToast(`Updated text for ${matchingTasks.length} task(s)!`)
+        }
+        break
+
       default:
         break
     }
@@ -147,6 +169,7 @@ export function AITaskInput({
   const resetState = () => {
     setCommandResult(null)
     setMatchingTasks([])
+    setTextUpdates([])
     setInput('')
   }
 
@@ -184,6 +207,7 @@ export function AITaskInput({
       case 'set_due_date': return `Set Due Date for ${matchingTasks.length} Task(s)`
       case 'change_priority': return `Change Priority for ${matchingTasks.length} Task(s)`
       case 'change_category': return `Move ${matchingTasks.length} Task(s) to ${result.newValue?.category}`
+      case 'edit_text': return `Edit Text for ${textUpdates.length || matchingTasks.length} Task(s)`
       case 'backend_required': return 'Backend Change Required'
       case 'unknown': return 'Unknown Command'
       default: return 'Command'
@@ -193,8 +217,13 @@ export function AITaskInput({
   const isDangerous = commandResult?.type === 'delete_tasks'
   const isBackendRequired = commandResult?.type === 'backend_required'
   const isUnknown = commandResult?.type === 'unknown'
+  const isEditText = commandResult?.type === 'edit_text'
   const canExecute = commandResult && !isBackendRequired && !isUnknown && (
-    commandResult.type === 'add_tasks' ? (commandResult.tasks?.length || 0) > 0 : matchingTasks.length > 0
+    commandResult.type === 'add_tasks' 
+      ? (commandResult.tasks?.length || 0) > 0 
+      : commandResult.type === 'edit_text'
+        ? (textUpdates.length > 0 || (commandResult.newValue?.text && matchingTasks.length > 0))
+        : matchingTasks.length > 0
   )
 
   return (
@@ -285,6 +314,8 @@ export function AITaskInput({
                         <li>"Delete tasks containing 'old'"</li>
                         <li>"Pin critical tasks to Today"</li>
                         <li>"Move Personal tasks to Sinjab"</li>
+                        <li>"Make all task titles shorter"</li>
+                        <li>"Add emojis to Personal tasks"</li>
                       </ul>
                     </div>
                   </div>
@@ -321,8 +352,48 @@ export function AITaskInput({
                   </div>
                 )}
 
+                {/* Text Edit Preview (for edit_text with transformations) */}
+                {isEditText && textUpdates.length > 0 && (
+                  <div className="space-y-2 max-h-[250px] overflow-y-auto mb-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      Preview changes:
+                    </p>
+                    {textUpdates.slice(0, 10).map((update, index) => (
+                      <motion.div
+                        key={update.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
+                      >
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex-shrink-0">
+                            Before
+                          </span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400 line-through">
+                            {update.originalText}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                            After
+                          </span>
+                          <span className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                            {update.newText}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))}
+                    {textUpdates.length > 10 && (
+                      <p className="text-xs text-slate-400 text-center py-1">
+                        ... and {textUpdates.length - 10} more
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Matching Tasks Preview (for bulk operations) */}
-                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && matchingTasks.length > 0 && (
+                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && !isEditText && matchingTasks.length > 0 && (
                   <div className="space-y-1 max-h-[200px] overflow-y-auto mb-4">
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
                       Affected tasks:
@@ -355,11 +426,32 @@ export function AITaskInput({
                 )}
 
                 {/* No Matching Tasks */}
-                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && matchingTasks.length === 0 && (
+                {commandResult.type !== 'add_tasks' && !isBackendRequired && !isUnknown && matchingTasks.length === 0 && !isEditText && (
                   <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 text-center">
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       No tasks match the criteria
                     </p>
+                  </div>
+                )}
+
+                {/* Edit Text - No transformations generated */}
+                {isEditText && textUpdates.length === 0 && matchingTasks.length === 0 && (
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 text-center">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No tasks match the criteria for text editing
+                    </p>
+                  </div>
+                )}
+
+                {/* Edit Text - Loading transformations */}
+                {isEditText && matchingTasks.length > 0 && textUpdates.length === 0 && isLoading && (
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Generating text transformations for {matchingTasks.length} task(s)...
+                      </p>
+                    </div>
                   </div>
                 )}
 

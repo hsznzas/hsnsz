@@ -233,6 +233,7 @@ export function useTaskStore() {
       duration,
       completed: false,
       waiting_for_reply: false,
+      waiting_since: null,
       due_date: dueDate || null,
       is_streak: isStreak || false,
       pinned_to_today: false,
@@ -289,7 +290,13 @@ export function useTaskStore() {
     setTasks(prev =>
       prev.map(t =>
         t.id === taskId
-          ? { ...t, completed, completed_at: completedAt, waiting_for_reply: completed ? false : t.waiting_for_reply }
+          ? {
+              ...t,
+              completed,
+              completed_at: completedAt,
+              waiting_for_reply: completed ? false : t.waiting_for_reply,
+              waiting_since: completed ? null : t.waiting_since ?? null,
+            }
           : t
       )
     )
@@ -298,12 +305,26 @@ export function useTaskStore() {
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       console.log('[TaskStore] Updating task in Supabase...')
-      // Only update 'completed' - completed_at may not exist in the schema
-      const { data, error } = await supabase
+      const updateData: Record<string, unknown> = {
+        completed,
+        waiting_for_reply: completed ? false : task.waiting_for_reply ?? false,
+        waiting_since: completed ? null : task.waiting_since ?? null,
+      }
+      let { data, error } = await supabase
         .from('tasks')
-        .update({ completed })
+        .update(updateData)
         .eq('id', taskId)
         .select()
+
+      if (error && (error.message?.includes('waiting_for_reply') || error.message?.includes('waiting_since'))) {
+        const fallback = await supabase
+          .from('tasks')
+          .update({ completed })
+          .eq('id', taskId)
+          .select()
+        data = fallback.data
+        error = fallback.error
+      }
       
       if (error) {
         console.error('[TaskStore] Failed to toggle task:', error)
@@ -312,7 +333,13 @@ export function useTaskStore() {
         setTasks(prev =>
           prev.map(t =>
             t.id === taskId
-              ? { ...t, completed: !completed, completed_at: task.completed_at, waiting_for_reply: task.waiting_for_reply }
+              ? {
+                  ...t,
+                  completed: !completed,
+                  completed_at: task.completed_at,
+                  waiting_for_reply: task.waiting_for_reply,
+                  waiting_since: task.waiting_since ?? null,
+                }
               : t
           )
         )
@@ -330,9 +357,18 @@ export function useTaskStore() {
     if (!task || task.completed) return
 
     const nextWaiting = !task.waiting_for_reply
+    const waitingSince = nextWaiting ? new Date().toISOString() : null
+    const nextPinnedToToday = nextWaiting ? false : task.pinned_to_today
     setTasks(prev =>
       prev.map(t =>
-        t.id === taskId ? { ...t, waiting_for_reply: nextWaiting } : t
+        t.id === taskId
+          ? {
+              ...t,
+              waiting_for_reply: nextWaiting,
+              waiting_since: waitingSince,
+              pinned_to_today: nextPinnedToToday,
+            }
+          : t
       )
     )
     setSyncError(null)
@@ -341,19 +377,30 @@ export function useTaskStore() {
     if (isConfigured && supabase) {
       const { error } = await supabase
         .from('tasks')
-        .update({ waiting_for_reply: nextWaiting })
+        .update({
+          waiting_for_reply: nextWaiting,
+          waiting_since: waitingSince,
+          pinned_to_today: nextPinnedToToday,
+        })
         .eq('id', taskId)
 
       if (error) {
-        if (error.message?.includes('waiting_for_reply')) {
-          console.warn('[TaskStore] waiting_for_reply column not found, keeping local state')
+        if (error.message?.includes('waiting_for_reply') || error.message?.includes('waiting_since')) {
+          console.warn('[TaskStore] waiting columns not found, keeping local state')
           return
         }
         console.error('[TaskStore] Failed to update waiting status:', error)
         setSyncError(`Waiting update failed: ${error.message}`)
         setTasks(prev =>
           prev.map(t =>
-            t.id === taskId ? { ...t, waiting_for_reply: task.waiting_for_reply } : t
+            t.id === taskId
+              ? {
+                  ...t,
+                  waiting_for_reply: task.waiting_for_reply,
+                  waiting_since: task.waiting_since ?? null,
+                  pinned_to_today: task.pinned_to_today,
+                }
+              : t
           )
         )
       }
@@ -659,22 +706,22 @@ export function useTaskStore() {
 
   // Today's tasks (pinned or Critical priority)
   const todayTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.pinned_to_today && !t.completed && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => t.pinned_to_today && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
   , [tasks])
 
   // Critical tasks (Must Do Now)
   const criticalTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.priority === 'Critical' && !t.completed && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => t.priority === 'Critical' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
   , [tasks])
 
   // Quick wins
   const quickWins = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
   , [tasks])
 
   // Streak tasks - include both is_streak flag AND category === 'Streaks'
   const streakTasks = useMemo(() => 
-    tasks.filter(t => isStreakTask(t))
+    tasks.filter(t => isStreakTask(t) && !t.waiting_for_reply)
   , [tasks])
 
   // Archive - ALL completed tasks (history)
@@ -696,13 +743,16 @@ export function useTaskStore() {
 
   // Group by category (excluding special categories and archived)
   const groupedByCategory = useMemo(() => {
-    const filtered = activeTasks.filter(t => 
-      t.priority !== 'Critical' && 
-      t.priority !== 'Quick Win' && 
-      !t.pinned_to_today &&
-      !isStreakTask(t) &&
-      PROJECT_CATEGORIES.includes(t.category)
-    )
+    const filtered = activeTasks.filter(t => {
+      const isSpecialPriority = t.priority === 'Critical' || t.priority === 'Quick Win'
+      const isStreakBlocked = isStreakTask(t) && !t.waiting_for_reply
+      return (
+        (t.waiting_for_reply || !isSpecialPriority) &&
+        (t.waiting_for_reply || !t.pinned_to_today) &&
+        !isStreakBlocked &&
+        PROJECT_CATEGORIES.includes(t.category)
+      )
+    })
     const grouped = filtered.reduce((acc, task) => {
       if (!acc[task.category]) acc[task.category] = []
       acc[task.category].push(task)
