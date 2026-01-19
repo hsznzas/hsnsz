@@ -13,6 +13,20 @@ export interface ActiveTimer {
   accumulatedSeconds: number  // Time accumulated before pause
 }
 
+const sortWaitingLast = (items: Task[]) => {
+  if (items.length === 0) return items
+  const waiting: Task[] = []
+  const normal: Task[] = []
+  items.forEach(task => {
+    if (task.waiting_for_reply) {
+      waiting.push(task)
+    } else {
+      normal.push(task)
+    }
+  })
+  return [...normal, ...waiting]
+}
+
 export function useTaskStore() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [timeLogs, setTimeLogs] = useState<TimeLog[]>([])
@@ -218,6 +232,7 @@ export function useTaskStore() {
       priority,
       duration,
       completed: false,
+      waiting_for_reply: false,
       due_date: dueDate || null,
       is_streak: isStreak || false,
       pinned_to_today: false,
@@ -273,7 +288,9 @@ export function useTaskStore() {
     // Optimistic update
     setTasks(prev =>
       prev.map(t =>
-        t.id === taskId ? { ...t, completed, completed_at: completedAt } : t
+        t.id === taskId
+          ? { ...t, completed, completed_at: completedAt, waiting_for_reply: completed ? false : t.waiting_for_reply }
+          : t
       )
     )
     setSyncError(null)
@@ -294,7 +311,9 @@ export function useTaskStore() {
         // Rollback
         setTasks(prev =>
           prev.map(t =>
-            t.id === taskId ? { ...t, completed: !completed, completed_at: task.completed_at } : t
+            t.id === taskId
+              ? { ...t, completed: !completed, completed_at: task.completed_at, waiting_for_reply: task.waiting_for_reply }
+              : t
           )
         )
         return !completed // Return old state
@@ -305,6 +324,41 @@ export function useTaskStore() {
 
     return completed
   }, [tasks, isConfigured, activeTimers])
+
+  const toggleWaitingForReply = useCallback(async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task || task.completed) return
+
+    const nextWaiting = !task.waiting_for_reply
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId ? { ...t, waiting_for_reply: nextWaiting } : t
+      )
+    )
+    setSyncError(null)
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ waiting_for_reply: nextWaiting })
+        .eq('id', taskId)
+
+      if (error) {
+        if (error.message?.includes('waiting_for_reply')) {
+          console.warn('[TaskStore] waiting_for_reply column not found, keeping local state')
+          return
+        }
+        console.error('[TaskStore] Failed to update waiting status:', error)
+        setSyncError(`Waiting update failed: ${error.message}`)
+        setTasks(prev =>
+          prev.map(t =>
+            t.id === taskId ? { ...t, waiting_for_reply: task.waiting_for_reply } : t
+          )
+        )
+      }
+    }
+  }, [tasks, isConfigured])
 
   // Pin task to Today
   const pinToToday = useCallback(async (taskId: number, pinned: boolean) => {
@@ -605,17 +659,17 @@ export function useTaskStore() {
 
   // Today's tasks (pinned or Critical priority)
   const todayTasks = useMemo(() => 
-    tasks.filter(t => t.pinned_to_today && !t.completed && !isStreakTask(t))
+    sortWaitingLast(tasks.filter(t => t.pinned_to_today && !t.completed && !isStreakTask(t)))
   , [tasks])
 
   // Critical tasks (Must Do Now)
   const criticalTasks = useMemo(() => 
-    tasks.filter(t => t.priority === 'Critical' && !t.completed && !isStreakTask(t))
+    sortWaitingLast(tasks.filter(t => t.priority === 'Critical' && !t.completed && !isStreakTask(t)))
   , [tasks])
 
   // Quick wins
   const quickWins = useMemo(() => 
-    tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !isStreakTask(t))
+    sortWaitingLast(tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !isStreakTask(t)))
   , [tasks])
 
   // Streak tasks - include both is_streak flag AND category === 'Streaks'
@@ -649,11 +703,15 @@ export function useTaskStore() {
       !isStreakTask(t) &&
       PROJECT_CATEGORIES.includes(t.category)
     )
-    return filtered.reduce((acc, task) => {
+    const grouped = filtered.reduce((acc, task) => {
       if (!acc[task.category]) acc[task.category] = []
       acc[task.category].push(task)
       return acc
     }, {} as Record<string, Task[]>)
+    Object.keys(grouped).forEach(category => {
+      grouped[category] = sortWaitingLast(grouped[category])
+    })
+    return grouped
   }, [activeTasks])
 
   // Group archived by category
@@ -686,6 +744,7 @@ export function useTaskStore() {
     syncError,
     addTask,
     toggleTask,
+    toggleWaitingForReply,
     updateTask,
     deleteTask,
     pinToToday,

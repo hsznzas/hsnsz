@@ -37,6 +37,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 import { useTaskStore } from '@/lib/hooks/useTaskStore'
 import { useTheme } from '@/lib/hooks/useTheme'
+import { useAdminGate } from '@/lib/hooks/useAdminGate'
 import { ProgressBar } from '@/components/ProgressBar'
 import { TaskItem } from '@/components/TaskItem'
 import { AITaskInput } from '@/components/AITaskInput'
@@ -44,6 +45,7 @@ import { InlineCategoryInput } from '@/components/InlineCategoryInput'
 import { WeeklyGantt } from '@/components/WeeklyGantt'
 import { StreakCard } from '@/components/StreakCard'
 import { ListHeader } from '@/components/ListHeader'
+import { AdminPasscodeModal } from '@/components/AdminPasscodeModal'
 import { triggerCompletionConfetti, triggerQuickWinConfetti } from '@/lib/utils/confetti'
 import type { Category, Priority, Task } from '@/lib/supabase/types'
 import { PROJECT_CATEGORIES } from '@/lib/supabase/types'
@@ -95,6 +97,7 @@ export default function ProductivityDashboard() {
     syncError,
     addTask,
     toggleTask,
+    toggleWaitingForReply,
     updateTask,
     deleteTask,
     pinToToday,
@@ -119,6 +122,7 @@ export default function ProductivityDashboard() {
   } = useTaskStore()
 
   const { theme, toggleTheme, mounted } = useTheme()
+  const { isUnlocked, isChecking, unlock } = useAdminGate()
   const [activeTab, setActiveTab] = useState<ViewTab>('tasks')
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
   const [expandedProjectLists, setExpandedProjectLists] = useState<Record<string, boolean>>(() => {
@@ -229,6 +233,26 @@ export default function ProductivityDashboard() {
       ...prev,
       [category]: !prev[category]
     }))
+  }
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-sm text-slate-500 dark:text-slate-400">Checking admin access...</div>
+      </div>
+    )
+  }
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
+        <AdminPasscodeModal
+          isOpen
+          onSubmit={unlock}
+          title="Admin Dashboard"
+        />
+      </div>
+    )
   }
 
   if (loading) {
@@ -368,6 +392,7 @@ export default function ProductivityDashboard() {
                         key={task.id} 
                         task={task} 
                         onToggle={handleToggle}
+                        onToggleWaiting={toggleWaitingForReply}
                         isTimerActive={isTimerActive(task.id)}
                         isTimerPaused={isTimerPaused(task.id)}
                         timerStartTime={getActiveTimer(task.id)?.startTime}
@@ -398,6 +423,7 @@ export default function ProductivityDashboard() {
                       key={task.id} 
                       task={task} 
                       onToggle={handleToggle}
+                      onToggleWaiting={toggleWaitingForReply}
                       isTimerActive={isTimerActive(task.id)}
                       isTimerPaused={isTimerPaused(task.id)}
                       timerStartTime={getActiveTimer(task.id)?.startTime}
@@ -430,6 +456,7 @@ export default function ProductivityDashboard() {
                       key={task.id} 
                       task={task} 
                       onToggle={handleToggle}
+                      onToggleWaiting={toggleWaitingForReply}
                       isTimerActive={isTimerActive(task.id)}
                       isTimerPaused={isTimerPaused(task.id)}
                       timerStartTime={getActiveTimer(task.id)?.startTime}
@@ -464,6 +491,7 @@ export default function ProductivityDashboard() {
                         key={task.id} 
                         task={task} 
                         onToggle={handleToggle}
+                        onToggleWaiting={toggleWaitingForReply}
                         onUpdateTask={updateTask}
                         onDeleteTask={deleteTask}
                       />
@@ -510,6 +538,7 @@ export default function ProductivityDashboard() {
                                       key={task.id} 
                                       task={task} 
                                       onToggle={handleToggle} 
+                                      onToggleWaiting={toggleWaitingForReply}
                                       showCategory={false}
                                       isTimerActive={isTimerActive(task.id)}
                                       isTimerPaused={isTimerPaused(task.id)}

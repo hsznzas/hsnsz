@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AdminDashboardLink } from '@/components/AdminDashboardLink'
 
 export default function LandingPage() {
   return (
@@ -25,15 +26,7 @@ export default function LandingPage() {
 
           {/* CTAs */}
           <div className="flex flex-col gap-4">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center text-sm font-medium text-slate-900 hover:text-slate-600 transition-colors duration-300 group"
-            >
-              Enter The Super To Do List
-              <span className="ml-2 group-hover:translate-x-1 transition-transform duration-300">
-                →
-              </span>
-            </Link>
+            <AdminDashboardLink />
             <Link
               href="/lifetime-calendar"
               className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors duration-300 group"

@@ -8,6 +8,7 @@ export interface Task {
   priority: Priority
   duration: string
   completed: boolean
+  waiting_for_reply?: boolean
   created_at?: string
   updated_at?: string
   completed_at?: string | null

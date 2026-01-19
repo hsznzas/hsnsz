@@ -9,6 +9,7 @@ import { CategoryBadge } from './CategoryBadge'
 interface TaskItemProps {
   task: Task
   onToggle: (id: number) => void
+  onToggleWaiting?: (id: number) => void
   showCategory?: boolean
   isTimerActive?: boolean
   isTimerPaused?: boolean
@@ -60,6 +61,7 @@ const DURATION_OPTIONS = ['5 min', '10 min', '15 min', '30 min', '1 hour', '2 ho
 export function TaskItem({ 
   task, 
   onToggle, 
+  onToggleWaiting,
   showCategory = true,
   isTimerActive = false,
   isTimerPaused = false,
@@ -155,6 +157,7 @@ export function TaskItem({
   }, [task.due_date, task.completed])
 
   const isUrgent = dueInfo?.isUrgent && !task.completed
+  const isWaiting = task.waiting_for_reply && !task.completed
 
   const handleSaveEdit = () => {
     if (onUpdateTask && editText.trim()) {
@@ -279,15 +282,37 @@ export function TaskItem({
         </div>
       )}
 
-      {/* Checkbox */}
-      <div 
-        onClick={() => onToggle(task.id)}
-        className="mt-1 text-slate-400 dark:text-slate-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors"
-      >
-        {task.completed ? (
-          <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-        ) : (
-          <Circle className={`w-5 h-5 ${isUrgent ? 'text-red-500' : ''}`} />
+      {/* Checkbox + Waiting Toggle */}
+      <div className="mt-1 flex flex-col items-center gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(task.id)
+          }}
+          className="text-slate-400 dark:text-slate-500 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors"
+          title={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
+        >
+          {task.completed ? (
+            <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+          ) : (
+            <Circle className={`w-5 h-5 ${isUrgent ? 'text-red-500' : ''}`} />
+          )}
+        </button>
+        {onToggleWaiting && !task.completed && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleWaiting(task.id)
+            }}
+            className={`p-0.5 rounded transition-colors ${
+              task.waiting_for_reply
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 dark:hover:text-amber-400'
+            }`}
+            title={task.waiting_for_reply ? 'Clear waiting status' : 'Mark waiting for reply'}
+          >
+            <Clock className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
       
@@ -304,9 +329,11 @@ export function TaskItem({
               <div className={`text-sm font-semibold ${
                 task.completed 
                   ? 'line-through text-slate-400 dark:text-slate-500' 
-                  : isUrgent 
-                    ? 'text-red-600 dark:text-red-400' 
-                    : 'text-slate-900 dark:text-slate-100'
+                  : isWaiting
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : isUrgent 
+                      ? 'text-red-600 dark:text-red-400' 
+                      : 'text-slate-900 dark:text-slate-100'
               }`}>
                 {title}
               </div>
@@ -314,7 +341,9 @@ export function TaskItem({
                 <div className={`text-xs mt-0.5 ${
                   task.completed 
                     ? 'line-through text-slate-300 dark:text-slate-600' 
-                    : 'text-slate-500 dark:text-slate-400 font-light'
+                    : isWaiting
+                      ? 'text-amber-500 dark:text-amber-400 font-light'
+                      : 'text-slate-500 dark:text-slate-400 font-light'
                 }`}>
                   {description}
                 </div>
