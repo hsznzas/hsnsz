@@ -35,6 +35,7 @@ export function useTaskStore() {
   const [isConfigured, setIsConfigured] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const supabaseRef = useRef(getSupabase())
+  const lastTaskIdRef = useRef(0)
 
   // Initialize and setup real-time subscriptions
   useEffect(() => {
@@ -215,6 +216,13 @@ export function useTaskStore() {
     }
   }
 
+  const getNextTaskId = useCallback(() => {
+    const now = Date.now()
+    const nextId = now <= lastTaskIdRef.current ? lastTaskIdRef.current + 1 : now
+    lastTaskIdRef.current = nextId
+    return nextId
+  }, [])
+
   // Task operations with OPTIMISTIC UPDATES
   const addTask = useCallback(async (
     text: string,
@@ -224,7 +232,7 @@ export function useTaskStore() {
     dueDate?: string | null,
     isStreak?: boolean
   ) => {
-    const newId = Date.now()
+    const newId = getNextTaskId()
     const newTask: Task = {
       id: newId,
       text,
@@ -259,7 +267,16 @@ export function useTaskStore() {
         completed: false,
       }
 
-      const { error } = await supabase.from('tasks').insert(insertData)
+      let { error } = await supabase.from('tasks').insert(insertData)
+
+      if (error && error.message?.includes('duplicate key')) {
+        const retryId = getNextTaskId()
+        const retryData = { ...insertData, id: retryId }
+        error = (await supabase.from('tasks').insert(retryData)).error
+        if (!error) {
+          setTasks(prev => prev.map(t => t.id === newId ? { ...t, id: retryId } : t))
+        }
+      }
       
       if (error) {
         console.error('[TaskStore] Failed to add task:', error)
@@ -270,7 +287,7 @@ export function useTaskStore() {
         console.log('[TaskStore] Task added successfully')
       }
     }
-  }, [isConfigured])
+  }, [getNextTaskId, isConfigured])
 
   // Toggle task with TIMER FIX - stops timer immediately on completion
   const toggleTask = useCallback(async (taskId: number) => {
