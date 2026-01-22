@@ -721,19 +721,36 @@ export function useTaskStore() {
   // Helper to check if task is a streak task
   const isStreakTask = (t: Task) => t.is_streak || t.category === 'Streaks'
 
-  // Today's tasks (pinned or Critical priority)
+  // Helper to check if task was completed within last 24 hours (should still be visible)
+  const isRecentlyCompleted = (t: Task) => {
+    if (!t.completed) return false
+    if (!t.completed_at) return false
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    return new Date(t.completed_at) >= twentyFourHoursAgo
+  }
+
+  // Today's tasks (pinned) - keep completed for 24h
   const todayTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.pinned_to_today && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => {
+      if (!t.pinned_to_today || t.waiting_for_reply || isStreakTask(t)) return false
+      return !t.completed || isRecentlyCompleted(t)
+    }))
   , [tasks])
 
-  // Critical tasks (Must Do Now)
+  // Critical tasks (Must Do Now) - keep completed for 24h
   const criticalTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.priority === 'Critical' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => {
+      if (t.priority !== 'Critical' || t.waiting_for_reply || isStreakTask(t)) return false
+      return !t.completed || isRecentlyCompleted(t)
+    }))
   , [tasks])
 
-  // Quick wins
+  // Quick wins - keep completed for 24h
   const quickWins = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => t.priority === 'Quick Win' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)))
+    sortWaitingLast(tasks.filter(t => {
+      if (t.priority !== 'Quick Win' || t.waiting_for_reply || isStreakTask(t)) return false
+      return !t.completed || isRecentlyCompleted(t)
+    }))
   , [tasks])
 
   // Streak tasks - include both is_streak flag AND category === 'Streaks'
@@ -741,9 +758,15 @@ export function useTaskStore() {
     tasks.filter(t => isStreakTask(t) && !t.waiting_for_reply)
   , [tasks])
 
-  // Archive - ALL completed tasks (history)
+  // Archive - completed tasks older than 24 hours
   const archivedTasks = useMemo(() => {
-    return tasks.filter(t => t.completed && !isStreakTask(t))
+    const now = new Date()
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    return tasks.filter(t => {
+      if (!t.completed || isStreakTask(t)) return false
+      if (!t.completed_at) return false
+      return new Date(t.completed_at) < twentyFourHoursAgo
+    })
   }, [tasks])
 
   // Active (non-archived) tasks

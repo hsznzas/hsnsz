@@ -15,7 +15,8 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
-  Home
+  Home,
+  Undo2
 } from 'lucide-react'
 import {
   DndContext,
@@ -608,7 +609,7 @@ export default function ProductivityDashboard() {
                           key={task.id}
                           className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-800 rounded-lg opacity-60"
                         >
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm text-slate-600 dark:text-slate-400 line-through">{task.text}</p>
                             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                               Completed: {task.completed_at ? new Date(task.completed_at).toLocaleDateString('en-US', {
@@ -620,6 +621,13 @@ export default function ProductivityDashboard() {
                               }) : 'Unknown'}
                             </p>
                           </div>
+                          <button
+                            onClick={() => toggleTask(task.id)}
+                            className="ml-3 p-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors flex-shrink-0"
+                            title="Undo - mark as incomplete"
+                          >
+                            <Undo2 className="w-4 h-4" />
+                          </button>
                         </div>
                       ))}
                     </div>

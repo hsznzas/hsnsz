@@ -348,7 +348,7 @@ export function TaskItem({
       </div>
       
       {/* Content */}
-      <div className="flex-1 min-w-0" onClick={() => onToggle(task.id)}>
+      <div className="flex-1 min-w-0" onClick={() => setIsEditing(true)}>
         {/* Parse title and description from text (format: "EMOJI TITLE\nDESCRIPTION") */}
         {(() => {
           const parts = task.text.split('\n')
