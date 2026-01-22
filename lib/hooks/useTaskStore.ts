@@ -327,6 +327,7 @@ export function useTaskStore() {
         waiting_for_reply: completed ? false : task.waiting_for_reply ?? false,
         waiting_since: completed ? null : task.waiting_since ?? null,
       }
+
       let { data, error } = await supabase
         .from('tasks')
         .update(updateData)
@@ -721,36 +722,43 @@ export function useTaskStore() {
   // Helper to check if task is a streak task
   const isStreakTask = (t: Task) => t.is_streak || t.category === 'Streaks'
 
-  // Helper to check if task was completed within last 24 hours (should still be visible)
-  const isRecentlyCompleted = (t: Task) => {
-    if (!t.completed) return false
-    if (!t.completed_at) return false
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    return new Date(t.completed_at) >= twentyFourHoursAgo
+  // Sort helper: waiting tasks last, then completed tasks at the very end
+  const sortCompletedLast = (items: Task[]) => {
+    if (items.length === 0) return items
+    const completed: Task[] = []
+    const waiting: Task[] = []
+    const normal: Task[] = []
+    items.forEach(task => {
+      if (task.completed) {
+        completed.push(task)
+      } else if (task.waiting_for_reply) {
+        waiting.push(task)
+      } else {
+        normal.push(task)
+      }
+    })
+    return [...normal, ...waiting, ...completed]
   }
 
-  // Today's tasks (pinned) - keep completed for 24h
+  // Today's tasks (pinned) - only active tasks, completed ones go to category lists
   const todayTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => {
-      if (!t.pinned_to_today || t.waiting_for_reply || isStreakTask(t)) return false
-      return !t.completed || isRecentlyCompleted(t)
-    }))
+    sortWaitingLast(tasks.filter(t => 
+      t.pinned_to_today && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
+    ))
   , [tasks])
 
-  // Critical tasks (Must Do Now) - keep completed for 24h
+  // Critical tasks (Must Do Now) - only active tasks, completed ones go to category lists
   const criticalTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => {
-      if (t.priority !== 'Critical' || t.waiting_for_reply || isStreakTask(t)) return false
-      return !t.completed || isRecentlyCompleted(t)
-    }))
+    sortWaitingLast(tasks.filter(t => 
+      t.priority === 'Critical' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
+    ))
   , [tasks])
 
-  // Quick wins - keep completed for 24h
+  // Quick wins - only active tasks, completed ones go to category lists
   const quickWins = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => {
-      if (t.priority !== 'Quick Win' || t.waiting_for_reply || isStreakTask(t)) return false
-      return !t.completed || isRecentlyCompleted(t)
-    }))
+    sortWaitingLast(tasks.filter(t => 
+      t.priority === 'Quick Win' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
+    ))
   , [tasks])
 
   // Streak tasks - include both is_streak flag AND category === 'Streaks'
@@ -758,48 +766,38 @@ export function useTaskStore() {
     tasks.filter(t => isStreakTask(t) && !t.waiting_for_reply)
   , [tasks])
 
-  // Archive - completed tasks older than 24 hours
-  const archivedTasks = useMemo(() => {
-    const now = new Date()
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    return tasks.filter(t => {
-      if (!t.completed || isStreakTask(t)) return false
-      if (!t.completed_at) return false
-      return new Date(t.completed_at) < twentyFourHoursAgo
-    })
-  }, [tasks])
+  // Archive - disabled, completed tasks stay in their category lists forever
+  const archivedTasks = useMemo(() => [] as Task[], [])
 
-  // Active (non-archived) tasks
-  const activeTasks = useMemo(() => {
-    const now = new Date()
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    return tasks.filter(t => {
-      if (!t.completed) return true
-      if (!t.completed_at) return true
-      const completedDate = new Date(t.completed_at)
-      return completedDate >= twentyFourHoursAgo
-    })
-  }, [tasks])
+  // Active tasks - ALL tasks (no archiving)
+  const activeTasks = useMemo(() => tasks, [tasks])
 
-  // Group by category (excluding special categories and archived)
+  // Group by category - completed tasks from special lists go here at the bottom
   const groupedByCategory = useMemo(() => {
     const filtered = activeTasks.filter(t => {
+      // Exclude streak tasks
+      if (isStreakTask(t) && !t.waiting_for_reply) return false
+      // Must be a project category
+      if (!PROJECT_CATEGORIES.includes(t.category)) return false
+      
+      // Completed tasks always go to category lists (even if from special lists)
+      if (t.completed) return true
+      
+      // For non-completed tasks, exclude those in special lists
       const isSpecialPriority = t.priority === 'Critical' || t.priority === 'Quick Win'
-      const isStreakBlocked = isStreakTask(t) && !t.waiting_for_reply
-      return (
-        (t.waiting_for_reply || !isSpecialPriority) &&
-        (t.waiting_for_reply || !t.pinned_to_today) &&
-        !isStreakBlocked &&
-        PROJECT_CATEGORIES.includes(t.category)
-      )
+      if (isSpecialPriority && !t.waiting_for_reply) return false
+      if (t.pinned_to_today && !t.waiting_for_reply) return false
+      
+      return true
     })
     const grouped = filtered.reduce((acc, task) => {
       if (!acc[task.category]) acc[task.category] = []
       acc[task.category].push(task)
       return acc
     }, {} as Record<string, Task[]>)
+    // Sort each category: normal tasks, then waiting, then completed at bottom
     Object.keys(grouped).forEach(category => {
-      grouped[category] = sortWaitingLast(grouped[category])
+      grouped[category] = sortCompletedLast(grouped[category])
     })
     return grouped
   }, [activeTasks])
