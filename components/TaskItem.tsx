@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap, ChevronLeft, ChevronRight, Archive } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Trash2, X, Save, Zap, ChevronLeft, ChevronRight, Archive } from 'lucide-react'
 import type { Task, Category, Priority } from '@/lib/supabase/types'
 import { CATEGORIES, PRIORITIES } from '@/lib/supabase/types'
 import { CategoryBadge } from './CategoryBadge'
@@ -427,8 +427,8 @@ export function TaskItem({
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-1">
+      {/* Always visible buttons (state indicators + archive) - higher z-index to stay on top */}
+      <div className="flex items-center gap-1 flex-shrink-0 z-10 relative">
         {/* Archive Button - only for completed tasks */}
         {task.completed && onArchiveTask && (
           <button
@@ -443,22 +443,8 @@ export function TaskItem({
           </button>
         )}
 
-        {/* Edit Button */}
-        {onUpdateTask && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsEditing(true)
-            }}
-            className="p-2 rounded-lg transition-all hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500"
-            title="Edit task"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-        )}
-
-        {/* Due Date Picker */}
-        {onUpdateDueDate && !task.completed && (
+        {/* Due Date Button - only when date is set */}
+        {onUpdateDueDate && !task.completed && task.due_date && (
           <div className="relative">
             <button
               ref={dateButtonRef}
@@ -470,11 +456,7 @@ export function TaskItem({
                   openDatePicker()
                 }
               }}
-              className={`p-2 rounded-lg transition-all ${
-                task.due_date 
-                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
-                  : 'hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
-              }`}
+              className="p-2 rounded-lg transition-all bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
               title="Set due date"
             >
               <Calendar className="w-4 h-4" />
@@ -482,7 +464,6 @@ export function TaskItem({
             
             {showDatePicker && datePickerPos && (
               <>
-                {/* Backdrop to close */}
                 <div 
                   className="fixed inset-0 z-[9998]" 
                   onClick={(e) => {
@@ -490,7 +471,6 @@ export function TaskItem({
                     closeDatePicker()
                   }}
                 />
-                {/* Popup - FIXED positioning to escape any overflow constraints */}
                 <div 
                   className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 p-3 min-w-[220px]"
                   style={{
@@ -505,7 +485,6 @@ export function TaskItem({
                     type="date"
                     value={task.due_date ? task.due_date.slice(0, 10) : ''}
                     onChange={(e) => {
-                      // Set due date to end of day (23:59:59)
                       const dateValue = e.target.value 
                         ? new Date(e.target.value + 'T23:59:59').toISOString() 
                         : null
@@ -531,17 +510,128 @@ export function TaskItem({
           </div>
         )}
 
-        {/* Pin to Today Button */}
+        {/* Timer Controls - always visible when active */}
+        {!task.completed && onStartTimer && onStopTimer && hasAnyTimer && (
+          <div 
+            className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-1 py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${isTimerActive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                {formatDuration(elapsed)}
+              </span>
+            </div>
+            
+            {onPauseTimer && (
+              isTimerActive ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onPauseTimer()
+                  }}
+                  className="p-1.5 rounded-md transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                  title="Pause timer"
+                >
+                  <Pause className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onStartTimer()
+                  }}
+                  className="p-1.5 rounded-md transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
+                  title="Resume timer"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                </button>
+              )
+            )}
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onStopTimer()
+              }}
+              className="p-1.5 rounded-md transition-all bg-red-500 hover:bg-red-600 text-white shadow-sm"
+              title="Stop & save time"
+            >
+              <Square className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Hover overlay buttons - absolutely positioned, lower z-index than always-visible */}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-lg p-1 shadow-lg border border-slate-200 dark:border-slate-700 z-0">
+        {/* Due Date Picker - only when no date set */}
+        {onUpdateDueDate && !task.completed && !task.due_date && (
+          <div className="relative">
+            <button
+              ref={!task.due_date ? dateButtonRef : undefined}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (showDatePicker) {
+                  closeDatePicker()
+                } else {
+                  openDatePicker()
+                }
+              }}
+              className="p-2 rounded-lg transition-all hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+              title="Set due date"
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
+            
+            {showDatePicker && datePickerPos && (
+              <>
+                <div 
+                  className="fixed inset-0 z-[9998]" 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeDatePicker()
+                  }}
+                />
+                <div 
+                  className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 p-3 min-w-[220px]"
+                  style={{
+                    top: datePickerPos.placeAbove ? 'auto' : datePickerPos.top,
+                    bottom: datePickerPos.placeAbove ? `${window.innerHeight - datePickerPos.top + 8}px` : 'auto',
+                    left: datePickerPos.left,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">Set Due Date</label>
+                  <input
+                    type="date"
+                    value={task.due_date ? task.due_date.slice(0, 10) : ''}
+                    onChange={(e) => {
+                      const dateValue = e.target.value 
+                        ? new Date(e.target.value + 'T23:59:59').toISOString() 
+                        : null
+                      onUpdateDueDate(task.id, dateValue)
+                      closeDatePicker()
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Pin/Unpin Button */}
         {showPinButton && onPinToToday && !task.completed && (
           <button
             onClick={(e) => {
               e.stopPropagation()
               onPinToToday(task.id, !task.pinned_to_today)
             }}
-            className={`p-2 rounded-lg transition-all hover:scale-110 active:scale-95 ${
+            className={`p-2 rounded-lg transition-all ${
               task.pinned_to_today
-                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
-                : 'hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
+                ? 'hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400'
             }`}
             title={task.pinned_to_today ? 'Unpin from Today' : 'Pin to Today'}
           >
@@ -556,85 +646,25 @@ export function TaskItem({
               e.stopPropagation()
               onUpdateTask(task.id, { priority: 'Quick Win' })
             }}
-            className="p-2 rounded-lg transition-all hidden group-hover:block hover:scale-110 active:scale-95 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400"
+            className="p-2 rounded-lg transition-all hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400"
             title="Add to Quick Wins"
           >
             <Zap className="w-4 h-4" />
           </button>
         )}
 
-        {/* Timer Controls */}
-        {!task.completed && onStartTimer && onStopTimer && (
-          hasAnyTimer ? (
-            // Timer is active (running or paused) - show time and controls
-            <div 
-              className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-1 py-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Timer Display */}
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${isTimerActive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
-                <span className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                  {formatDuration(elapsed)}
-                </span>
-              </div>
-              
-              {/* Pause/Resume Button */}
-              {onPauseTimer && (
-                isTimerActive ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      console.log('[Timer] Pause clicked for task:', task.id)
-                      onPauseTimer()
-                    }}
-                    className="p-1.5 rounded-md transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
-                    title="Pause timer"
-                  >
-                    <Pause className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      console.log('[Timer] Resume clicked for task:', task.id)
-                      onStartTimer()
-                    }}
-                    className="p-1.5 rounded-md transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
-                    title="Resume timer"
-                  >
-                    <Play className="w-3.5 h-3.5" />
-                  </button>
-                )
-              )}
-              
-              {/* Stop Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  console.log('[Timer] Stop clicked for task:', task.id)
-                  onStopTimer()
-                }}
-                className="p-1.5 rounded-md transition-all bg-red-500 hover:bg-red-600 text-white shadow-sm"
-                title="Stop & save time"
-              >
-                <Square className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            // No active timer - show Play button
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                console.log('[Timer] Start clicked for task:', task.id)
-                onStartTimer()
-              }}
-              className="p-2 rounded-lg transition-all border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
-              title="Start timer"
-            >
-              <Play className="w-4 h-4" />
-            </button>
-          )
+        {/* Start Timer Button - only when no timer active */}
+        {!task.completed && onStartTimer && onStopTimer && !hasAnyTimer && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onStartTimer()
+            }}
+            className="p-2 rounded-lg transition-all hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+            title="Start timer"
+          >
+            <Play className="w-4 h-4" />
+          </button>
         )}
       </div>
     </div>
