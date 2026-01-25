@@ -100,8 +100,6 @@ export function TaskItem({
 }: TaskItemProps) {
   const [elapsed, setElapsed] = useState(0)
   const hasAnyTimer = isTimerActive || isTimerPaused
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [datePickerPos, setDatePickerPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(task.text)
   const [editCategory, setEditCategory] = useState<Category>(task.category)
@@ -110,32 +108,13 @@ export function TaskItem({
   const [showShimmer, setShowShimmer] = useState(isNew)
   const [nowTs, setNowTs] = useState(() => Date.now())
   
-  const dateButtonRef = useRef<HTMLButtonElement>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
   
-  // Calculate popup position based on button location
+  // Open native date picker with single click
   const openDatePicker = useCallback(() => {
-    if (dateButtonRef.current) {
-      const rect = dateButtonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const popupHeight = 150 // Approximate popup height
-      
-      // Check if there's more space above or below
-      const spaceBelow = viewportHeight - rect.bottom
-      const spaceAbove = rect.top
-      const placeAbove = spaceBelow < popupHeight && spaceAbove > spaceBelow
-      
-      setDatePickerPos({
-        top: placeAbove ? rect.top : rect.bottom + 8,
-        left: Math.min(rect.right - 220, window.innerWidth - 240), // Keep within viewport
-        placeAbove
-      })
+    if (dateInputRef.current) {
+      dateInputRef.current.showPicker()
     }
-    setShowDatePicker(true)
-  }, [])
-  
-  const closeDatePicker = useCallback(() => {
-    setShowDatePicker(false)
-    setDatePickerPos(null)
   }, [])
 
   // Shimmer effect for new tasks
@@ -315,6 +294,23 @@ export function TaskItem({
         </div>
       )}
 
+      {/* Hidden Date Input - single click date picker */}
+      {onUpdateDueDate && !task.completed && (
+        <input
+          ref={dateInputRef}
+          type="date"
+          value={task.due_date ? task.due_date.slice(0, 10) : ''}
+          onChange={(e) => {
+            const dateValue = e.target.value 
+              ? new Date(e.target.value + 'T23:59:59').toISOString() 
+              : null
+            onUpdateDueDate(task.id, dateValue)
+          }}
+          className="absolute opacity-0 w-0 h-0 pointer-events-none"
+          tabIndex={-1}
+        />
+      )}
+
       {/* Checkbox + Waiting Toggle */}
       <div className="mt-1 flex flex-col items-center gap-1">
         <button
@@ -445,69 +441,16 @@ export function TaskItem({
 
         {/* Due Date Button - only when date is set */}
         {onUpdateDueDate && !task.completed && task.due_date && (
-          <div className="relative">
-            <button
-              ref={dateButtonRef}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (showDatePicker) {
-                  closeDatePicker()
-                } else {
-                  openDatePicker()
-                }
-              }}
-              className="p-2 rounded-lg transition-all bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
-              title="Set due date"
-            >
-              <Calendar className="w-4 h-4" />
-            </button>
-            
-            {showDatePicker && datePickerPos && (
-              <>
-                <div 
-                  className="fixed inset-0 z-[9998]" 
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeDatePicker()
-                  }}
-                />
-                <div 
-                  className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 p-3 min-w-[220px]"
-                  style={{
-                    top: datePickerPos.placeAbove ? 'auto' : datePickerPos.top,
-                    bottom: datePickerPos.placeAbove ? `${window.innerHeight - datePickerPos.top + 8}px` : 'auto',
-                    left: datePickerPos.left,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">Set Due Date</label>
-                  <input
-                    type="date"
-                    value={task.due_date ? task.due_date.slice(0, 10) : ''}
-                    onChange={(e) => {
-                      const dateValue = e.target.value 
-                        ? new Date(e.target.value + 'T23:59:59').toISOString() 
-                        : null
-                      onUpdateDueDate(task.id, dateValue)
-                      closeDatePicker()
-                    }}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {task.due_date && (
-                    <button
-                      onClick={() => {
-                        onUpdateDueDate(task.id, null)
-                        closeDatePicker()
-                      }}
-                      className="mt-2 w-full text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded-lg transition-colors"
-                    >
-                      Clear Due Date
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              openDatePicker()
+            }}
+            className="p-2 rounded-lg transition-all bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
+            title="Change due date"
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
         )}
 
         {/* Timer Controls - always visible when active */}
@@ -567,58 +510,16 @@ export function TaskItem({
       <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-lg p-1 shadow-lg border border-slate-200 dark:border-slate-700 z-0">
         {/* Due Date Picker - only when no date set */}
         {onUpdateDueDate && !task.completed && !task.due_date && (
-          <div className="relative">
-            <button
-              ref={!task.due_date ? dateButtonRef : undefined}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (showDatePicker) {
-                  closeDatePicker()
-                } else {
-                  openDatePicker()
-                }
-              }}
-              className="p-2 rounded-lg transition-all hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
-              title="Set due date"
-            >
-              <Calendar className="w-4 h-4" />
-            </button>
-            
-            {showDatePicker && datePickerPos && (
-              <>
-                <div 
-                  className="fixed inset-0 z-[9998]" 
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeDatePicker()
-                  }}
-                />
-                <div 
-                  className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 p-3 min-w-[220px]"
-                  style={{
-                    top: datePickerPos.placeAbove ? 'auto' : datePickerPos.top,
-                    bottom: datePickerPos.placeAbove ? `${window.innerHeight - datePickerPos.top + 8}px` : 'auto',
-                    left: datePickerPos.left,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 block">Set Due Date</label>
-                  <input
-                    type="date"
-                    value={task.due_date ? task.due_date.slice(0, 10) : ''}
-                    onChange={(e) => {
-                      const dateValue = e.target.value 
-                        ? new Date(e.target.value + 'T23:59:59').toISOString() 
-                        : null
-                      onUpdateDueDate(task.id, dateValue)
-                      closeDatePicker()
-                    }}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              openDatePicker()
+            }}
+            className="p-2 rounded-lg transition-all hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+            title="Set due date"
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
         )}
 
         {/* Pin/Unpin Button */}
