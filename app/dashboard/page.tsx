@@ -101,6 +101,7 @@ export default function ProductivityDashboard() {
     toggleWaitingForReply,
     updateTask,
     deleteTask,
+    archiveTask,
     pinToToday,
     updateDueDate,
     startTimer,
@@ -405,6 +406,7 @@ export default function ProductivityDashboard() {
                         onUpdateDueDate={updateDueDate}
                         onUpdateTask={updateTask}
                         onDeleteTask={deleteTask}
+                        onArchiveTask={archiveTask}
                         isNew={newTaskIds.has(task.id)}
                       />
                     ))}
@@ -436,6 +438,7 @@ export default function ProductivityDashboard() {
                       onUpdateDueDate={updateDueDate}
                       onUpdateTask={updateTask}
                       onDeleteTask={deleteTask}
+                      onArchiveTask={archiveTask}
                       isNew={newTaskIds.has(task.id)}
                     />
                   ))}
@@ -470,6 +473,7 @@ export default function ProductivityDashboard() {
                       onUpdateDueDate={updateDueDate}
                       onUpdateTask={updateTask}
                       onDeleteTask={deleteTask}
+                      onArchiveTask={archiveTask}
                       isNew={newTaskIds.has(task.id)}
                     />
                   ))}
@@ -551,6 +555,7 @@ export default function ProductivityDashboard() {
                                       onUpdateDueDate={updateDueDate}
                                       onUpdateTask={updateTask}
                                       onDeleteTask={deleteTask}
+                                      onArchiveTask={archiveTask}
                                       isNew={newTaskIds.has(task.id)}
                                     />
                                   ))}

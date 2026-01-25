@@ -18,6 +18,7 @@ export interface Task {
   is_streak?: boolean
   streak_current?: number
   streak_target?: number
+  is_archived?: boolean
   user_id?: string
 }
 

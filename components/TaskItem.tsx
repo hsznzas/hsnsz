@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Play, Pause, Square, Pin, PinOff, Calendar, AlertTriangle, Pencil, Trash2, X, Save, Zap, ChevronLeft, ChevronRight, Archive } from 'lucide-react'
 import type { Task, Category, Priority } from '@/lib/supabase/types'
 import { CATEGORIES, PRIORITIES } from '@/lib/supabase/types'
 import { CategoryBadge } from './CategoryBadge'
@@ -24,6 +24,7 @@ interface TaskItemProps {
   onUpdateDueDate?: (id: number, date: string | null) => void
   onUpdateTask?: (id: number, updates: Partial<Pick<Task, 'text' | 'category' | 'priority' | 'duration'>>) => void
   onDeleteTask?: (id: number) => void
+  onArchiveTask?: (id: number) => void
   isNew?: boolean
 }
 
@@ -94,6 +95,7 @@ export function TaskItem({
   onUpdateDueDate,
   onUpdateTask,
   onDeleteTask,
+  onArchiveTask,
   isNew = false,
 }: TaskItemProps) {
   const [elapsed, setElapsed] = useState(0)
@@ -427,6 +429,20 @@ export function TaskItem({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1">
+        {/* Archive Button - only for completed tasks */}
+        {task.completed && onArchiveTask && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onArchiveTask(task.id)
+            }}
+            className="p-2 rounded-lg transition-all hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+            title="Move to archive"
+          >
+            <Archive className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Edit Button */}
         {onUpdateTask && (
           <button
@@ -434,7 +450,7 @@ export function TaskItem({
               e.stopPropagation()
               setIsEditing(true)
             }}
-            className="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500"
+            className="p-2 rounded-lg transition-all hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500"
             title="Edit task"
           >
             <Pencil className="w-4 h-4" />
@@ -454,10 +470,10 @@ export function TaskItem({
                   openDatePicker()
                 }
               }}
-              className={`p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${
+              className={`p-2 rounded-lg transition-all ${
                 task.due_date 
-                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 opacity-100' 
-                  : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' 
+                  : 'hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
               }`}
               title="Set due date"
             >
@@ -522,10 +538,10 @@ export function TaskItem({
               e.stopPropagation()
               onPinToToday(task.id, !task.pinned_to_today)
             }}
-            className={`p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 ${
+            className={`p-2 rounded-lg transition-all hover:scale-110 active:scale-95 ${
               task.pinned_to_today
-                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 opacity-100'
-                : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                : 'hidden group-hover:block hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500'
             }`}
             title={task.pinned_to_today ? 'Unpin from Today' : 'Pin to Today'}
           >
@@ -540,7 +556,7 @@ export function TaskItem({
               e.stopPropagation()
               onUpdateTask(task.id, { priority: 'Quick Win' })
             }}
-            className="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400"
+            className="p-2 rounded-lg transition-all hidden group-hover:block hover:scale-110 active:scale-95 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400"
             title="Add to Quick Wins"
           >
             <Zap className="w-4 h-4" />

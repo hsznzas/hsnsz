@@ -548,6 +548,41 @@ export function useTaskStore() {
     }
   }, [isConfigured, tasks, activeTimers])
 
+  // Archive a completed task
+  const archiveTask = useCallback(async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task || !task.completed) return // Only completed tasks can be archived
+
+    // Optimistic update
+    setTasks(prev => prev.map(t => 
+      t.id === taskId ? { ...t, is_archived: true } : t
+    ))
+    setSyncError(null)
+
+    const supabase = supabaseRef.current
+    if (isConfigured && supabase) {
+      console.log('[TaskStore] Archiving task:', taskId)
+      const { error } = await supabase
+        .from('tasks')
+        .update({ is_archived: true })
+        .eq('id', taskId)
+      
+      if (error) {
+        // If is_archived column doesn't exist, just keep the local state
+        if (error.message?.includes('is_archived')) {
+          console.warn('[TaskStore] is_archived column not found, keeping local state only')
+        } else {
+          console.error('[TaskStore] Failed to archive task:', error)
+          setSyncError(`Archive failed: ${error.message}`)
+          // Rollback
+          setTasks(prev => prev.map(t => 
+            t.id === taskId ? { ...t, is_archived: false } : t
+          ))
+        }
+      }
+    }
+  }, [tasks, isConfigured])
+
   // Timer operations
   const startTimer = useCallback(async (taskId: number) => {
     console.log('[TaskStore] startTimer called for taskId:', taskId)
@@ -766,11 +801,15 @@ export function useTaskStore() {
     tasks.filter(t => isStreakTask(t) && !t.waiting_for_reply)
   , [tasks])
 
-  // Archive - disabled, completed tasks stay in their category lists forever
-  const archivedTasks = useMemo(() => [] as Task[], [])
+  // Archive - only tasks explicitly marked as archived
+  const archivedTasks = useMemo(() => 
+    tasks.filter(t => t.is_archived && !isStreakTask(t))
+  , [tasks])
 
-  // Active tasks - ALL tasks (no archiving)
-  const activeTasks = useMemo(() => tasks, [tasks])
+  // Active tasks - all tasks that are not archived
+  const activeTasks = useMemo(() => 
+    tasks.filter(t => !t.is_archived)
+  , [tasks])
 
   // Group by category - completed tasks from special lists go here at the bottom
   const groupedByCategory = useMemo(() => {
@@ -835,6 +874,7 @@ export function useTaskStore() {
     toggleWaitingForReply,
     updateTask,
     deleteTask,
+    archiveTask,
     pinToToday,
     updateDueDate,
     startTimer,
