@@ -144,7 +144,7 @@ export function TaskItem({
       setShowShimmer(true)
       const timer = setTimeout(() => {
         setShowShimmer(false)
-      }, 3000)
+      }, 5000)
       return () => clearTimeout(timer)
     }
   }, [isNew])

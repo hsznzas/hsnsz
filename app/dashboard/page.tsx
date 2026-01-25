@@ -378,6 +378,40 @@ export default function ProductivityDashboard() {
             {/* LEFT COLUMN: HYPER-FOCUS */}
             <div className="lg:col-span-1 space-y-6">
               
+              {/* Critical Priority Block - Must Do Now */}
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl shadow-md border-l-4 border-red-500 overflow-hidden">
+                <div className="bg-red-100 dark:bg-red-900/40 p-3 border-b border-red-200 dark:border-red-800 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <h2 className="font-bold text-red-800 dark:text-red-300">Must Do Now</h2>
+                </div>
+                <div className="p-2">
+                  {criticalTasks.map(task => (
+                    <TaskItem 
+                      key={task.id} 
+                      task={task} 
+                      onToggle={handleToggle}
+                      onToggleWaiting={toggleWaitingForReply}
+                      isTimerActive={isTimerActive(task.id)}
+                      isTimerPaused={isTimerPaused(task.id)}
+                      timerStartTime={getActiveTimer(task.id)?.startTime}
+                      accumulatedSeconds={getActiveTimer(task.id)?.accumulatedSeconds ?? 0}
+                      onStartTimer={() => startTimer(task.id)}
+                      onPauseTimer={() => pauseTimer(task.id)}
+                      onStopTimer={() => stopTimer(task.id)}
+                      onPinToToday={pinToToday}
+                      onUpdateDueDate={updateDueDate}
+                      onUpdateTask={updateTask}
+                      onDeleteTask={deleteTask}
+                      onArchiveTask={archiveTask}
+                      isNew={newTaskIds.has(task.id)}
+                    />
+                  ))}
+                  {criticalTasks.length === 0 && (
+                    <p className="text-sm text-slate-400 dark:text-slate-500 p-3">No critical tasks! 🎉</p>
+                  )}
+                </div>
+              </div>
+
               {/* Today's Tasks */}
               {todayTasks.length > 0 && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl shadow-md border-l-4 border-amber-500 overflow-hidden">
@@ -413,40 +447,6 @@ export default function ProductivityDashboard() {
                   </div>
                 </div>
               )}
-
-              {/* Critical Priority Block - Must Do Now */}
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-xl shadow-md border-l-4 border-red-500 overflow-hidden">
-                <div className="bg-red-100 dark:bg-red-900/40 p-3 border-b border-red-200 dark:border-red-800 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                  <h2 className="font-bold text-red-800 dark:text-red-300">Must Do Now</h2>
-                </div>
-                <div className="p-2">
-                  {criticalTasks.map(task => (
-                    <TaskItem 
-                      key={task.id} 
-                      task={task} 
-                      onToggle={handleToggle}
-                      onToggleWaiting={toggleWaitingForReply}
-                      isTimerActive={isTimerActive(task.id)}
-                      isTimerPaused={isTimerPaused(task.id)}
-                      timerStartTime={getActiveTimer(task.id)?.startTime}
-                      accumulatedSeconds={getActiveTimer(task.id)?.accumulatedSeconds ?? 0}
-                      onStartTimer={() => startTimer(task.id)}
-                      onPauseTimer={() => pauseTimer(task.id)}
-                      onStopTimer={() => stopTimer(task.id)}
-                      onPinToToday={pinToToday}
-                      onUpdateDueDate={updateDueDate}
-                      onUpdateTask={updateTask}
-                      onDeleteTask={deleteTask}
-                      onArchiveTask={archiveTask}
-                      isNew={newTaskIds.has(task.id)}
-                    />
-                  ))}
-                  {criticalTasks.length === 0 && (
-                    <p className="text-sm text-slate-400 dark:text-slate-500 p-3">No critical tasks! 🎉</p>
-                  )}
-                </div>
-              </div>
 
               {/* Quick Wins Block */}
               <div className="bg-slate-50 dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
