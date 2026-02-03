@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import type { Category, Priority, Task } from '@/lib/supabase/types'
 import { PROJECT_CATEGORIES, CATEGORIES } from '@/lib/supabase/types'
+import { parseGoogleApiError } from './useLocalAPIKey'
 
 // Types of commands the AI can understand
 export type CommandType =
@@ -128,7 +129,7 @@ export function useAICommands(apiKey: string | null) {
 
   const parseCommand = useCallback(async (input: string): Promise<AICommandResult> => {
     if (!apiKey) {
-      return { type: 'unknown', error: 'No API key configured. Add NEXT_PUBLIC_GEMINI_API_KEY to .env.local' }
+      return { type: 'unknown', error: 'No API key configured. Click the settings icon to add your Gemini API key.' }
     }
 
     if (!input.trim()) {
@@ -165,7 +166,7 @@ export function useAICommands(apiKey: string | null) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData?.error?.message || `API error: ${response.status}`
+        const errorMessage = parseGoogleApiError(response, errorData)
         setError(errorMessage)
         return { type: 'unknown', error: errorMessage }
       }
@@ -321,7 +322,7 @@ Respond with ONLY a JSON array like:
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData?.error?.message || `API error: ${response.status}`
+        const errorMessage = parseGoogleApiError(response, errorData)
         setError(errorMessage)
         return []
       }

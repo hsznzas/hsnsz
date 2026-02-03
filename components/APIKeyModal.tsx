@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Key, Eye, EyeOff, ExternalLink, Shield, Trash2 } from 'lucide-react'
+import { X, Key, Eye, EyeOff, ExternalLink, Shield, Trash2, Loader2, CheckCircle } from 'lucide-react'
+import { testApiKey } from '@/lib/hooks/useLocalAPIKey'
 
 interface APIKeyModalProps {
   isOpen: boolean
@@ -16,8 +17,10 @@ export function APIKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: AP
   const [inputKey, setInputKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [error, setError] = useState('')
+  const [isValidating, setIsValidating] = useState(false)
+  const [validationSuccess, setValidationSuccess] = useState(false)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmedKey = inputKey.trim()
     
     if (!trimmedKey) {
@@ -30,10 +33,28 @@ export function APIKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: AP
       return
     }
 
-    onSave(trimmedKey)
-    setInputKey('')
+    // Test the API key before saving
+    setIsValidating(true)
     setError('')
-    onClose()
+    
+    const result = await testApiKey(trimmedKey)
+    
+    setIsValidating(false)
+    
+    if (!result.valid) {
+      setError(result.error || 'Invalid API key')
+      return
+    }
+
+    // Key is valid - show success briefly then save
+    setValidationSuccess(true)
+    setTimeout(() => {
+      onSave(trimmedKey)
+      setInputKey('')
+      setError('')
+      setValidationSuccess(false)
+      onClose()
+    }, 800)
   }
 
   const handleClear = () => {
@@ -170,16 +191,33 @@ export function APIKeyModal({ isOpen, onClose, currentKey, onSave, onClear }: AP
                 <div className="flex items-center gap-2">
                   <button
                     onClick={onClose}
-                    className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    disabled={isValidating}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSave}
-                    disabled={!inputKey.trim()}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!inputKey.trim() || isValidating || validationSuccess}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:cursor-not-allowed flex items-center gap-2 ${
+                      validationSuccess 
+                        ? 'bg-emerald-500 dark:bg-emerald-600' 
+                        : 'bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50'
+                    }`}
                   >
-                    Save Key
+                    {isValidating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Validating...
+                      </>
+                    ) : validationSuccess ? (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        Valid!
+                      </>
+                    ) : (
+                      'Save Key'
+                    )}
                   </button>
                 </div>
               </div>

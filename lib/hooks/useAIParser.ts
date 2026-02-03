@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import type { Category, Priority } from '@/lib/supabase/types'
+import { parseGoogleApiError } from './useLocalAPIKey'
 
 export interface ParsedTask {
   text: string
@@ -105,7 +106,7 @@ export function useAIParser(apiKey: string | null) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData?.error?.message || `API error: ${response.status}`
+        const errorMessage = parseGoogleApiError(response, errorData)
         setError(errorMessage)
         return { tasks: [], error: errorMessage }
       }
