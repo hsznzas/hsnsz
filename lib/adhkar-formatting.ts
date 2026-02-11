@@ -39,16 +39,16 @@ export interface AdhkarFormatting {
 export const defaultFormatting: AdhkarFormatting = {
   // Font sizes
   titleSize: 32,
-  dhikrTextSize: 26,
-  noteSize: 18,
-  repetitionSize: 22,
+  dhikrTextSize: 27,
+  noteSize: 16,
+  repetitionSize: 14,
   
   // Line heights
-  dhikrLineHeight: 2.0,
-  noteLineHeight: 1.8,
+  dhikrLineHeight: 3.0,
+  noteLineHeight: 1.2,
   
   // Letter spacing
-  letterSpacing: 0.02,
+  letterSpacing: 0,
   
   // Colors - Light mode
   lightBackground: '#faf8f5',
@@ -67,9 +67,9 @@ export const defaultFormatting: AdhkarFormatting = {
   accentColorDark: '#34d399',
   
   // Spacing
-  cardPadding: 32,
-  cardGap: 40,
-  cardBorderRadius: 16,
+  cardPadding: 16,
+  cardGap: 47,
+  cardBorderRadius: 14,
 }
 
 // Path to settings file
