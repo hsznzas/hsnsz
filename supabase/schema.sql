@@ -149,3 +149,35 @@ COMMENT ON COLUMN tasks.streak_target IS 'Target streak goal in days';
 COMMENT ON COLUMN tasks.completed_at IS 'When the task was completed (for archive)';
 COMMENT ON COLUMN tasks.due_date IS 'Task due date for urgency calculation';
 COMMENT ON COLUMN time_logs.duration_seconds IS 'Total duration in seconds (calculated on stop)';
+
+-- =============================================
+-- Quran Speed Tracker
+-- =============================================
+
+CREATE TABLE quran_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    start_page INTEGER NOT NULL,
+    end_page INTEGER,
+    start_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    end_at TIMESTAMPTZ,
+    duration_seconds INTEGER,
+    pages_count INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_quran_sessions_start_at ON quran_sessions(start_at DESC);
+CREATE INDEX idx_quran_sessions_end_page ON quran_sessions(end_page);
+
+ALTER TABLE quran_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all quran_sessions operations"
+    ON quran_sessions FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE quran_sessions;
+
+COMMENT ON TABLE quran_sessions IS 'Quran recitation speed tracker - records page ranges and elapsed time';
+COMMENT ON COLUMN quran_sessions.start_page IS 'First page recited in this session';
+COMMENT ON COLUMN quran_sessions.end_page IS 'Last page recited (NULL while active)';
+COMMENT ON COLUMN quran_sessions.duration_seconds IS 'Total seconds elapsed (set on stop)';
