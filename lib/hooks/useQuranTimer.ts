@@ -214,6 +214,74 @@ export function useQuranTimer() {
     [fetchSessions]
   )
 
+  const addManualSession = useCallback(
+    async (params: {
+      start_page: number
+      end_page: number
+      start_at: string
+      duration_minutes: number
+    }): Promise<boolean> => {
+      const sb = getSupabase()
+      if (!sb) return false
+
+      const startAt = new Date(params.start_at)
+      const durationSeconds = Math.round(params.duration_minutes * 60)
+      const endAt = new Date(startAt.getTime() + durationSeconds * 1000)
+      const pagesCount = params.end_page - params.start_page + 1
+
+      const { error } = await sb.from('quran_sessions').insert({
+        start_page: params.start_page,
+        end_page: params.end_page,
+        start_at: startAt.toISOString(),
+        end_at: endAt.toISOString(),
+        duration_seconds: durationSeconds,
+        pages_count: pagesCount,
+      })
+
+      if (error) return false
+      await fetchSessions()
+      return true
+    },
+    [fetchSessions]
+  )
+
+  const updateSession = useCallback(
+    async (
+      id: string,
+      params: {
+        start_page: number
+        end_page: number
+        start_at: string
+        duration_minutes: number
+      }
+    ): Promise<boolean> => {
+      const sb = getSupabase()
+      if (!sb) return false
+
+      const startAt = new Date(params.start_at)
+      const durationSeconds = Math.round(params.duration_minutes * 60)
+      const endAt = new Date(startAt.getTime() + durationSeconds * 1000)
+      const pagesCount = params.end_page - params.start_page + 1
+
+      const { error } = await sb
+        .from('quran_sessions')
+        .update({
+          start_page: params.start_page,
+          end_page: params.end_page,
+          start_at: startAt.toISOString(),
+          end_at: endAt.toISOString(),
+          duration_seconds: durationSeconds,
+          pages_count: pagesCount,
+        })
+        .eq('id', id)
+
+      if (error) return false
+      await fetchSessions()
+      return true
+    },
+    [fetchSessions]
+  )
+
   return {
     activeSession,
     elapsed,
@@ -224,6 +292,8 @@ export function useQuranTimer() {
     stopRecording,
     cancelRecording,
     deleteSession,
+    addManualSession,
+    updateSession,
     getNextStartPage,
     fetchSessions,
   }

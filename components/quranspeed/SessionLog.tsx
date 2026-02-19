@@ -1,6 +1,6 @@
 'use client'
 
-import { Trash2 } from 'lucide-react'
+import { Trash2, Pencil, Plus } from 'lucide-react'
 import { getSurahForPage } from '@/data/surahs'
 import type { QuranSession } from '@/lib/hooks/useQuranTimer'
 
@@ -27,22 +27,32 @@ function formatDate(iso: string): string {
 interface SessionLogProps {
   sessions: QuranSession[]
   onDelete: (id: string) => void
+  onEdit: (session: QuranSession) => void
+  onAddManual: () => void
 }
 
-export default function SessionLog({ sessions, onDelete }: SessionLogProps) {
-  if (sessions.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-400 text-sm">
-        لا توجد جلسات مسجلة بعد
-      </div>
-    )
-  }
-
+export default function SessionLog({ sessions, onDelete, onEdit, onAddManual }: SessionLogProps) {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
-        سجل الجلسات ({sessions.length})
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+          سجل الجلسات ({sessions.length})
+        </h3>
+        <button
+          onClick={onAddManual}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors active:scale-[0.97]"
+        >
+          <Plus size={14} />
+          إضافة يدوية
+        </button>
+      </div>
+
+      {sessions.length === 0 && (
+        <div className="text-center py-12 text-gray-400 text-sm">
+          لا توجد جلسات مسجلة بعد
+        </div>
+      )}
+
       {sessions.map((s) => {
         const minPerPage =
           s.duration_seconds && s.pages_count
@@ -80,13 +90,22 @@ export default function SessionLog({ sessions, onDelete }: SessionLogProps) {
               </div>
             </div>
 
-            <button
-              onClick={() => onDelete(s.id)}
-              className="shrink-0 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-400 hover:text-red-600 transition-all"
-              aria-label="حذف"
-            >
-              <Trash2 size={16} />
-            </button>
+            <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button
+                onClick={() => onEdit(s)}
+                className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="تعديل"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => onDelete(s.id)}
+                className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-400 hover:text-red-600 transition-colors"
+                aria-label="حذف"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
           </div>
         )
       })}

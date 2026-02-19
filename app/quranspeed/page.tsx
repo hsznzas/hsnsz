@@ -3,12 +3,14 @@
 import { useState, useCallback } from 'react'
 import { useAdminGate } from '@/lib/hooks/useAdminGate'
 import { useQuranTimer } from '@/lib/hooks/useQuranTimer'
+import type { QuranSession } from '@/lib/hooks/useQuranTimer'
 import { AdminPasscodeModal } from '@/components/AdminPasscodeModal'
 import StatsHeader from '@/components/quranspeed/StatsHeader'
 import QuranChart from '@/components/quranspeed/QuranChart'
 import SessionLog from '@/components/quranspeed/SessionLog'
 import RecordButton from '@/components/quranspeed/RecordButton'
 import StopModal from '@/components/quranspeed/StopModal'
+import ManualSessionModal from '@/components/quranspeed/ManualSessionModal'
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   return (
@@ -25,6 +27,8 @@ export default function QuranSpeedPage() {
   const { isUnlocked, isChecking, unlock } = useAdminGate()
   const timer = useQuranTimer()
   const [stopModalOpen, setStopModalOpen] = useState(false)
+  const [manualModalOpen, setManualModalOpen] = useState(false)
+  const [editingSession, setEditingSession] = useState<QuranSession | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   const showToast = useCallback((msg: string) => {
@@ -60,6 +64,33 @@ export default function QuranSpeedPage() {
     setStopModalOpen(false)
     showToast('تم إلغاء الجلسة')
   }, [timer, showToast])
+
+  const handleOpenAddManual = useCallback(() => {
+    setEditingSession(null)
+    setManualModalOpen(true)
+  }, [])
+
+  const handleOpenEdit = useCallback((session: QuranSession) => {
+    setEditingSession(session)
+    setManualModalOpen(true)
+  }, [])
+
+  const handleManualSave = useCallback(
+    async (params: { start_page: number; end_page: number; start_at: string; duration_minutes: number }) => {
+      let success: boolean
+      if (editingSession) {
+        success = await timer.updateSession(editingSession.id, params)
+      } else {
+        success = await timer.addManualSession(params)
+      }
+      setManualModalOpen(false)
+      setEditingSession(null)
+      if (success) {
+        showToast(editingSession ? 'تم تعديل الجلسة' : 'تمت إضافة الجلسة')
+      }
+    },
+    [editingSession, timer, showToast]
+  )
 
   if (isChecking) {
     return (
@@ -111,7 +142,12 @@ export default function QuranSpeedPage() {
         </section>
 
         <section>
-          <SessionLog sessions={timer.sessions} onDelete={timer.deleteSession} />
+          <SessionLog
+            sessions={timer.sessions}
+            onDelete={timer.deleteSession}
+            onEdit={handleOpenEdit}
+            onAddManual={handleOpenAddManual}
+          />
         </section>
       </div>
 
@@ -130,6 +166,13 @@ export default function QuranSpeedPage() {
         onConfirm={handleConfirmStop}
         onCancel={handleCancelSession}
         onDismiss={() => setStopModalOpen(false)}
+      />
+
+      <ManualSessionModal
+        open={manualModalOpen}
+        session={editingSession}
+        onSave={handleManualSave}
+        onDismiss={() => { setManualModalOpen(false); setEditingSession(null) }}
       />
     </div>
   )
