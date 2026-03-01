@@ -151,8 +151,7 @@ export function useAICommands(apiKey: string | null) {
             contents: [
               {
                 parts: [
-                  { text: COMMAND_SYSTEM_PROMPT },
-                  { text: `Interpret this command: "${input}"` }
+                  { text: `${COMMAND_SYSTEM_PROMPT}\n\nInterpret this command: "${input}"` }
                 ]
               }
             ],

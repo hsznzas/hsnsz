@@ -91,8 +91,7 @@ export function useAIParser(apiKey: string | null) {
             contents: [
               {
                 parts: [
-                  { text: SYSTEM_PROMPT },
-                  { text: `Parse this into tasks: "${input}"` }
+                  { text: `${SYSTEM_PROMPT}\n\nParse this into tasks: "${input}"` }
                 ]
               }
             ],

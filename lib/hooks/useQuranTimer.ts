@@ -87,7 +87,7 @@ export function useQuranTimer() {
           .select('*')
           .eq('id', local.id)
           .is('end_at', null)
-          .single()
+          .maybeSingle()
         if (data) {
           const session: ActiveSession = {
             id: data.id,
@@ -106,7 +106,7 @@ export function useQuranTimer() {
           .is('end_at', null)
           .order('start_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
         if (data) {
           const session: ActiveSession = {
             id: data.id,
