@@ -170,7 +170,7 @@ export function useAIParser(apiKey: string | null) {
 }
 
 function validateCategory(category: string): Category {
-  const validCategories: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input', 'Today', 'Streaks']
+  const validCategories: Category[] = ['Sinjab', 'Ajdel', 'Personal', 'Haseeb', 'Raqeeb', 'Voice Input']
   if (validCategories.includes(category as Category)) {
     return category as Category
   }
