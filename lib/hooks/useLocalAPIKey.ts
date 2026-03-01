@@ -21,7 +21,7 @@ export function parseGoogleApiError(response: Response, errorData: Record<string
   const errorStatus = (errorData?.error as Record<string, unknown>)?.status as string || ''
 
   // API Key errors
-  if (errorMessage.includes('API key not valid') || errorMessage.includes('API Key not found')) {
+  if (errorMessage.includes('API key not valid') || errorMessage.includes('API Key not found') || errorMessage.includes('expired')) {
     return 'Your API key is invalid or expired. Please get a new key from AI Studio and update it in settings.'
   }
 
@@ -67,7 +67,7 @@ export async function testApiKey(key: string): Promise<ApiKeyTestResult> {
   }
 
   const trimmedKey = key.trim()
-  
+
   if (!trimmedKey.startsWith('AIza')) {
     return { valid: false, error: 'Invalid key format. Gemini API keys start with "AIza"' }
   }
@@ -92,14 +92,14 @@ export async function testApiKey(key: string): Promise<ApiKeyTestResult> {
     const errorStatus = errorData?.error?.status || ''
 
     // Map common errors to user-friendly messages
-    if (errorMessage.includes('API key not valid') || errorMessage.includes('API Key not found')) {
+    if (errorMessage.includes('API key not valid') || errorMessage.includes('API Key not found') || errorMessage.includes('expired')) {
       return { valid: false, error: 'This API key is invalid or has been revoked. Please generate a new key from AI Studio.' }
     }
-    
+
     if (errorStatus === 'PERMISSION_DENIED' || errorMessage.includes('permission')) {
       return { valid: false, error: 'This API key doesn\'t have permission to use Gemini. Enable the Generative Language API in Google Cloud Console.' }
     }
-    
+
     if (errorStatus === 'RESOURCE_EXHAUSTED' || errorMessage.includes('quota')) {
       return { valid: false, error: 'API quota exceeded. Wait a bit or check your Google Cloud billing settings.' }
     }
