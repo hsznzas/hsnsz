@@ -64,7 +64,7 @@ export function useTaskStore() {
       setLoading(true)
       setSyncError(null)
       console.log('[TaskStore] Loading tasks from Supabase...')
-      
+
       // Load tasks
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
@@ -125,7 +125,7 @@ export function useTaskStore() {
 
     try {
       console.log('[TaskStore] Seeding database with', INITIAL_TASKS.length, 'tasks')
-      
+
       const tasksToInsert = INITIAL_TASKS.map(task => ({
         id: task.id,
         text: task.text,
@@ -158,7 +158,7 @@ export function useTaskStore() {
 
   const setupRealtimeSubscription = () => {
     const supabase = supabaseRef.current
-    if (!supabase) return () => {}
+    if (!supabase) return () => { }
 
     console.log('[TaskStore] Setting up realtime subscriptions...')
 
@@ -175,7 +175,7 @@ export function useTaskStore() {
               return [...prev, payload.new as Task]
             })
           } else if (payload.eventType === 'UPDATE') {
-            setTasks(prev => 
+            setTasks(prev =>
               prev.map(t => t.id === payload.new.id ? payload.new as Task : t)
             )
           } else if (payload.eventType === 'DELETE') {
@@ -255,7 +255,7 @@ export function useTaskStore() {
     const supabase = supabaseRef.current
     if (isConfigured && supabase) {
       console.log('[TaskStore] Adding task to Supabase:', newTask.text)
-      
+
       // Build insert object with only basic columns first
       // The new columns (due_date, is_streak, pinned_to_today, completed_at) may not exist yet
       const insertData: Record<string, unknown> = {
@@ -277,7 +277,7 @@ export function useTaskStore() {
           setTasks(prev => prev.map(t => t.id === newId ? { ...t, id: retryId } : t))
         }
       }
-      
+
       if (error) {
         console.error('[TaskStore] Failed to add task:', error)
         setSyncError(`Add failed: ${error.message}`)
@@ -308,12 +308,12 @@ export function useTaskStore() {
       prev.map(t =>
         t.id === taskId
           ? {
-              ...t,
-              completed,
-              completed_at: completedAt,
-              waiting_for_reply: completed ? false : t.waiting_for_reply,
-              waiting_since: completed ? null : t.waiting_since ?? null,
-            }
+            ...t,
+            completed,
+            completed_at: completedAt,
+            waiting_for_reply: completed ? false : t.waiting_for_reply,
+            waiting_since: completed ? null : t.waiting_since ?? null,
+          }
           : t
       )
     )
@@ -324,6 +324,7 @@ export function useTaskStore() {
       console.log('[TaskStore] Updating task in Supabase...')
       const updateData: Record<string, unknown> = {
         completed,
+        completed_at: completedAt,
         waiting_for_reply: completed ? false : task.waiting_for_reply ?? false,
         waiting_since: completed ? null : task.waiting_since ?? null,
       }
@@ -334,16 +335,6 @@ export function useTaskStore() {
         .eq('id', taskId)
         .select()
 
-      if (error && (error.message?.includes('waiting_for_reply') || error.message?.includes('waiting_since'))) {
-        const fallback = await supabase
-          .from('tasks')
-          .update({ completed })
-          .eq('id', taskId)
-          .select()
-        data = fallback.data
-        error = fallback.error
-      }
-      
       if (error) {
         console.error('[TaskStore] Failed to toggle task:', error)
         setSyncError(`Toggle failed: ${error.message}`)
@@ -352,12 +343,12 @@ export function useTaskStore() {
           prev.map(t =>
             t.id === taskId
               ? {
-                  ...t,
-                  completed: !completed,
-                  completed_at: task.completed_at,
-                  waiting_for_reply: task.waiting_for_reply,
-                  waiting_since: task.waiting_since ?? null,
-                }
+                ...t,
+                completed: !completed,
+                completed_at: task.completed_at,
+                waiting_for_reply: task.waiting_for_reply,
+                waiting_since: task.waiting_since ?? null,
+              }
               : t
           )
         )
@@ -381,11 +372,11 @@ export function useTaskStore() {
       prev.map(t =>
         t.id === taskId
           ? {
-              ...t,
-              waiting_for_reply: nextWaiting,
-              waiting_since: waitingSince,
-              pinned_to_today: nextPinnedToToday,
-            }
+            ...t,
+            waiting_for_reply: nextWaiting,
+            waiting_since: waitingSince,
+            pinned_to_today: nextPinnedToToday,
+          }
           : t
       )
     )
@@ -403,21 +394,17 @@ export function useTaskStore() {
         .eq('id', taskId)
 
       if (error) {
-        if (error.message?.includes('waiting_for_reply') || error.message?.includes('waiting_since')) {
-          console.warn('[TaskStore] waiting columns not found, keeping local state')
-          return
-        }
         console.error('[TaskStore] Failed to update waiting status:', error)
         setSyncError(`Waiting update failed: ${error.message}`)
         setTasks(prev =>
           prev.map(t =>
             t.id === taskId
               ? {
-                  ...t,
-                  waiting_for_reply: task.waiting_for_reply,
-                  waiting_since: task.waiting_since ?? null,
-                  pinned_to_today: task.pinned_to_today,
-                }
+                ...t,
+                waiting_for_reply: task.waiting_for_reply,
+                waiting_since: task.waiting_since ?? null,
+                pinned_to_today: task.pinned_to_today,
+              }
               : t
           )
         )
@@ -444,7 +431,7 @@ export function useTaskStore() {
         .from('tasks')
         .update({ pinned_to_today: pinned })
         .eq('id', taskId)
-      
+
       if (error) {
         console.error('[TaskStore] Failed to pin task:', error)
         setSyncError(`Pin failed: ${error.message}`)
@@ -476,7 +463,7 @@ export function useTaskStore() {
         .from('tasks')
         .update({ due_date: dueDate })
         .eq('id', taskId)
-      
+
       if (error) {
         console.error('[TaskStore] Failed to update due date:', error)
         // Rollback
@@ -508,7 +495,7 @@ export function useTaskStore() {
         .from('tasks')
         .update(updates)
         .eq('id', taskId)
-      
+
       if (error) {
         console.error('[TaskStore] Failed to update task:', error)
         setSyncError(`Update failed: ${error.message}`)
@@ -524,7 +511,7 @@ export function useTaskStore() {
 
   const deleteTask = useCallback(async (taskId: number) => {
     const taskToDelete = tasks.find(t => t.id === taskId)
-    
+
     // Stop timer first if running
     if (activeTimers.some(t => t.taskId === taskId)) {
       await stopTimer(taskId)
@@ -554,7 +541,7 @@ export function useTaskStore() {
     if (!task || !task.completed) return // Only completed tasks can be archived
 
     // Optimistic update
-    setTasks(prev => prev.map(t => 
+    setTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, is_archived: true } : t
     ))
     setSyncError(null)
@@ -566,19 +553,14 @@ export function useTaskStore() {
         .from('tasks')
         .update({ is_archived: true })
         .eq('id', taskId)
-      
+
       if (error) {
-        // If is_archived column doesn't exist, just keep the local state
-        if (error.message?.includes('is_archived')) {
-          console.warn('[TaskStore] is_archived column not found, keeping local state only')
-        } else {
-          console.error('[TaskStore] Failed to archive task:', error)
-          setSyncError(`Archive failed: ${error.message}`)
-          // Rollback
-          setTasks(prev => prev.map(t => 
-            t.id === taskId ? { ...t, is_archived: false } : t
-          ))
-        }
+        console.error('[TaskStore] Failed to archive task:', error)
+        setSyncError(`Archive failed: ${error.message}`)
+        // Rollback
+        setTasks(prev => prev.map(t =>
+          t.id === taskId ? { ...t, is_archived: false } : t
+        ))
       }
     }
   }, [tasks, isConfigured])
@@ -586,14 +568,14 @@ export function useTaskStore() {
   // Timer operations
   const startTimer = useCallback(async (taskId: number) => {
     console.log('[TaskStore] startTimer called for taskId:', taskId)
-    
+
     // Check if timer exists and is paused - if so, resume it
     const existingTimer = activeTimers.find(t => t.taskId === taskId)
     if (existingTimer) {
       if (existingTimer.isPaused) {
         console.log('[TaskStore] Resuming paused timer for taskId:', taskId)
-        setActiveTimers(prev => prev.map(t => 
-          t.taskId === taskId 
+        setActiveTimers(prev => prev.map(t =>
+          t.taskId === taskId
             ? { ...t, isPaused: false, startTime: new Date() }
             : t
         ))
@@ -606,16 +588,16 @@ export function useTaskStore() {
     const startTime = new Date()
     const timeLogId = crypto.randomUUID()
     console.log('[TaskStore] Starting new timer with ID:', timeLogId)
-    
+
     const newLog: TimeLog = {
       id: timeLogId,
       task_id: taskId,
       start_at: startTime.toISOString(),
     }
     setTimeLogs(prev => [newLog, ...prev])
-    setActiveTimers(prev => [...prev, { 
-      taskId, 
-      startTime, 
+    setActiveTimers(prev => [...prev, {
+      taskId,
+      startTime,
       timeLogId,
       isPaused: false,
       accumulatedSeconds: 0
@@ -628,40 +610,40 @@ export function useTaskStore() {
         .insert({ task_id: taskId, start_at: startTime.toISOString() })
         .select()
         .single()
-      
+
       if (error) {
         console.error('[TaskStore] Failed to start timer:', error)
         setTimeLogs(prev => prev.filter(l => l.id !== timeLogId))
         setActiveTimers(prev => prev.filter(t => t.taskId !== taskId))
       } else if (data) {
-        setTimeLogs(prev => prev.map(l => 
+        setTimeLogs(prev => prev.map(l =>
           l.id === timeLogId ? { ...l, id: data.id } : l
         ))
-        setActiveTimers(prev => prev.map(t => 
+        setActiveTimers(prev => prev.map(t =>
           t.taskId === taskId ? { ...t, timeLogId: data.id } : t
         ))
       }
     }
   }, [isConfigured, activeTimers])
-  
+
   // Pause timer - saves accumulated time in memory
   const pauseTimer = useCallback((taskId: number) => {
     console.log('[TaskStore] pauseTimer called for taskId:', taskId)
-    
+
     const timer = activeTimers.find(t => t.taskId === taskId)
     if (!timer || timer.isPaused) {
       console.log('[TaskStore] No active timer to pause for taskId:', taskId)
       return
     }
-    
+
     const now = new Date()
     const sessionSeconds = Math.floor((now.getTime() - timer.startTime.getTime()) / 1000)
     const newAccumulated = timer.accumulatedSeconds + sessionSeconds
-    
+
     console.log('[TaskStore] Pausing timer, accumulated:', newAccumulated, 'seconds')
-    
-    setActiveTimers(prev => prev.map(t => 
-      t.taskId === taskId 
+
+    setActiveTimers(prev => prev.map(t =>
+      t.taskId === taskId
         ? { ...t, isPaused: true, accumulatedSeconds: newAccumulated }
         : t
     ))
@@ -670,7 +652,7 @@ export function useTaskStore() {
   const stopTimer = useCallback(async (taskId: number) => {
     console.log('[TaskStore] stopTimer called for taskId:', taskId)
     console.log('[TaskStore] Current activeTimers:', activeTimers)
-    
+
     const timer = activeTimers.find(t => t.taskId === taskId)
     if (!timer) {
       console.log('[TaskStore] No active timer found for taskId:', taskId)
@@ -679,7 +661,7 @@ export function useTaskStore() {
 
     console.log('[TaskStore] Found timer:', timer)
     const endTime = new Date()
-    
+
     // Calculate total duration: accumulated time + current session (if not paused)
     let totalSeconds = timer.accumulatedSeconds
     if (!timer.isPaused) {
@@ -705,7 +687,7 @@ export function useTaskStore() {
         .from('time_logs')
         .update({ end_at: endTime.toISOString(), duration_seconds: totalSeconds })
         .eq('id', timer.timeLogId)
-      
+
       if (error) {
         // If duration_seconds column doesn't exist, try without it
         if (error.message?.includes('duration_seconds')) {
@@ -714,7 +696,7 @@ export function useTaskStore() {
             .from('time_logs')
             .update({ end_at: endTime.toISOString() })
             .eq('id', timer.timeLogId)
-          
+
           if (fallbackError) {
             console.error('[TaskStore] Failed to stop timer (fallback):', fallbackError)
           }
@@ -735,12 +717,12 @@ export function useTaskStore() {
     const timer = activeTimers.find(t => t.taskId === taskId)
     return timer ? !timer.isPaused : false
   }, [activeTimers])
-  
+
   const isTimerPaused = useCallback((taskId: number) => {
     const timer = activeTimers.find(t => t.taskId === taskId)
     return timer?.isPaused ?? false
   }, [activeTimers])
-  
+
   const hasTimer = useCallback((taskId: number) => {
     return activeTimers.some(t => t.taskId === taskId)
   }, [activeTimers])
@@ -776,40 +758,40 @@ export function useTaskStore() {
   }
 
   // Today's tasks (pinned) - only active tasks, completed ones go to category lists
-  const todayTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => 
+  const todayTasks = useMemo(() =>
+    sortWaitingLast(tasks.filter(t =>
       t.pinned_to_today && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
     ))
-  , [tasks])
+    , [tasks])
 
   // Critical tasks (Must Do Now) - only active tasks, completed ones go to category lists
-  const criticalTasks = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => 
+  const criticalTasks = useMemo(() =>
+    sortWaitingLast(tasks.filter(t =>
       t.priority === 'Critical' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
     ))
-  , [tasks])
+    , [tasks])
 
   // Quick wins - only active tasks, completed ones go to category lists
-  const quickWins = useMemo(() => 
-    sortWaitingLast(tasks.filter(t => 
+  const quickWins = useMemo(() =>
+    sortWaitingLast(tasks.filter(t =>
       t.priority === 'Quick Win' && !t.completed && !t.waiting_for_reply && !isStreakTask(t)
     ))
-  , [tasks])
+    , [tasks])
 
   // Streak tasks - include both is_streak flag AND category === 'Streaks'
-  const streakTasks = useMemo(() => 
+  const streakTasks = useMemo(() =>
     tasks.filter(t => isStreakTask(t) && !t.waiting_for_reply)
-  , [tasks])
+    , [tasks])
 
   // Archive - only tasks explicitly marked as archived
-  const archivedTasks = useMemo(() => 
+  const archivedTasks = useMemo(() =>
     tasks.filter(t => t.is_archived && !isStreakTask(t))
-  , [tasks])
+    , [tasks])
 
   // Active tasks - all tasks that are not archived
-  const activeTasks = useMemo(() => 
+  const activeTasks = useMemo(() =>
     tasks.filter(t => !t.is_archived)
-  , [tasks])
+    , [tasks])
 
   // Group by category - completed tasks from special lists go here at the bottom
   const groupedByCategory = useMemo(() => {
@@ -818,15 +800,15 @@ export function useTaskStore() {
       if (isStreakTask(t) && !t.waiting_for_reply) return false
       // Must be a project category
       if (!PROJECT_CATEGORIES.includes(t.category)) return false
-      
+
       // Completed tasks always go to category lists (even if from special lists)
       if (t.completed) return true
-      
+
       // For non-completed tasks, exclude those in special lists
       const isSpecialPriority = t.priority === 'Critical' || t.priority === 'Quick Win'
       if (isSpecialPriority && !t.waiting_for_reply) return false
       if (t.pinned_to_today && !t.waiting_for_reply) return false
-      
+
       return true
     })
     const grouped = filtered.reduce((acc, task) => {
