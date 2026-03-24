@@ -16,6 +16,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/material": "^7.3.8",
     "@mui/x-charts": "^8.27.0",
+    "@sparticuz/chromium": "^143.0.4",
     "@supabase/supabase-js": "^2.39.0",
     "canvas-confetti": "^1.9.2",
     "clsx": "^2.1.0",
@@ -23,6 +24,8 @@
     "framer-motion": "^10.18.0",
     "lucide-react": "^0.303.0",
     "next": "14.0.4",
+    "puppeteer": "^24.40.0",
+    "puppeteer-core": "^24.40.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
