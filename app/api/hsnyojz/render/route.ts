@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
     const pngData = resvg.render()
     const pngBuffer = pngData.asPng()
 
-    return new NextResponse(pngBuffer, {
+    return new NextResponse(new Uint8Array(pngBuffer), {
       headers: {
         'Content-Type': 'image/png',
         'Content-Disposition': 'inline; filename="hsnyojz-story.png"',

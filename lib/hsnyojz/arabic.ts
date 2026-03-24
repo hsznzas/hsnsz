@@ -5,6 +5,7 @@
 
 // @ts-expect-error -- arabic-reshaper has no type declarations
 import ArabicReshaper from 'arabic-reshaper'
+// @ts-expect-error -- bidi-js has no type declarations
 import bidiFactory from 'bidi-js'
 
 const bidi = bidiFactory()
@@ -18,7 +19,7 @@ function isArabicWord(word: string): boolean {
 function applyBidiReorder(text: string): string {
   const embeddingLevels = bidi.getEmbeddingLevels(text, 'rtl')
   const flips = bidi.getReorderSegments(text, embeddingLevels)
-  const chars = [...text]
+  const chars = Array.from(text)
   for (const [start, end] of flips) {
     let i = start
     let j = end
