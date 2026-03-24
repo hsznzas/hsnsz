@@ -1,26 +1,79 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+
+type InputMode = 'url' | 'text' | 'image'
 
 export default function HsnYojzPreview() {
+  const [mode, setMode] = useState<InputMode>('url')
   const [url, setUrl] = useState('')
+  const [text, setText] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [posterUrl, setPosterUrl] = useState<string | null>(null)
   const [summary, setSummary] = useState<{ headline: string; bullets: string[] } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      const objectUrl = URL.createObjectURL(file)
+      setImagePreview(objectUrl)
+    }
+  }
+
+  const clearImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const canGenerate = () => {
+    if (loading) return false
+    if (mode === 'url') return !!url.trim()
+    if (mode === 'text') return !!text.trim()
+    if (mode === 'image') return !!imageFile
+    return false
+  }
 
   const handleGenerate = async () => {
-    if (!url.trim()) return
+    if (!canGenerate()) return
     setLoading(true)
     setError('')
     setPosterUrl(null)
     setSummary(null)
 
     try {
+      const body: Record<string, string> = {}
+
+      if (mode === 'url') {
+        body.url = url.trim()
+      } else if (mode === 'text') {
+        body.text = text.trim()
+      }
+
+      if (imageFile) {
+        body.imageBase64 = await fileToBase64(imageFile)
+      } else if (mode === 'image' && imageFile) {
+        body.imageBase64 = await fileToBase64(imageFile)
+      }
+
       const res = await fetch('/api/hsnyojz/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -41,6 +94,12 @@ export default function HsnYojzPreview() {
     }
   }
 
+  const modes: { key: InputMode; label: string }[] = [
+    { key: 'url', label: 'رابط' },
+    { key: 'text', label: 'نص' },
+    { key: 'image', label: 'صورة' },
+  ]
+
   return (
     <div
       dir="rtl"
@@ -55,24 +114,133 @@ export default function HsnYojzPreview() {
           </p>
         </div>
 
-        {/* Input */}
-        <div className="flex gap-3 mb-8">
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="الصق رابط الخبر هنا..."
-            className="flex-1 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            dir="ltr"
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !url.trim()}
-            className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? '⏳ جاري...' : '🎨 إنشاء'}
-          </button>
+        {/* Mode Tabs */}
+        <div className="flex gap-2 mb-6">
+          {modes.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setMode(m.key)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                mode === m.key
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
+
+        {/* URL Input */}
+        {mode === 'url' && (
+          <div className="mb-6">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="الصق رابط الخبر هنا..."
+              className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              dir="ltr"
+            />
+          </div>
+        )}
+
+        {/* Text Input */}
+        {mode === 'text' && (
+          <div className="mb-6">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="الصق نص الخبر هنا..."
+              rows={6}
+              className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y"
+            />
+          </div>
+        )}
+
+        {/* Image Upload */}
+        {mode === 'image' && (
+          <div className="mb-6">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full p-8 rounded-xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-600 text-center cursor-pointer hover:border-emerald-500 transition-colors"
+            >
+              {imagePreview ? (
+                <div className="space-y-3">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="max-h-48 mx-auto rounded-lg object-contain"
+                  />
+                  <p className="text-xs text-slate-500">{imageFile?.name}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-2xl">📷</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    اضغط لرفع صورة (سكرين شوت للخبر)
+                  </p>
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            {imagePreview && (
+              <button
+                onClick={clearImage}
+                className="mt-2 text-xs text-red-500 hover:text-red-400"
+              >
+                إزالة الصورة
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Optional image for URL/text modes */}
+        {(mode === 'url' || mode === 'text') && (
+          <div className="mb-6">
+            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-2">
+              صورة (اختياري) — تُستخدم بدلاً من صورة المقال
+            </label>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                {imageFile ? '📷 تغيير الصورة' : '📷 رفع صورة'}
+              </button>
+              {imageFile && (
+                <>
+                  <span className="text-xs text-slate-500 truncate max-w-[200px]">{imageFile.name}</span>
+                  <button onClick={clearImage} className="text-xs text-red-500 hover:text-red-400">
+                    إزالة
+                  </button>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        )}
+
+        {/* Generate Button */}
+        <button
+          onClick={handleGenerate}
+          disabled={!canGenerate()}
+          className="w-full px-6 py-3.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-8"
+        >
+          {loading ? '⏳ جاري الإنشاء...' : '🎨 إنشاء البوستر'}
+        </button>
 
         {/* Error */}
         {error && (

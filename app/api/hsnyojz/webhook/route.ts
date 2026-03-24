@@ -11,8 +11,7 @@ import {
   type TelegramUpdate,
 } from '@/lib/hsnyojz/telegram'
 import { scrapeArticle } from '@/lib/hsnyojz/scraper'
-import { summarizeArticle } from '@/lib/hsnyojz/summarizer'
-import { generatePosterHtml } from '@/lib/hsnyojz/template'
+import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary } from '@/lib/hsnyojz/summarizer'
 
 export const maxDuration = 60 // Allow full pipeline to complete
 export const dynamic = 'force-dynamic'
@@ -44,97 +43,120 @@ export async function POST(request: NextRequest) {
         '🗞 <b>حسن يوجز</b> - أداة إنشاء بوسترات الأخبار',
         '',
         '📌 <b>طريقة الاستخدام:</b>',
-        '1️⃣ أرسل رابط خبر',
-        '2️⃣ (اختياري) أرسل صورة مع الرابط في التعليق',
-        '3️⃣ انتظر البوستر!',
+        '1️⃣ أرسل رابط خبر (مع أو بدون صورة)',
+        '2️⃣ أرسل نص خبر (مع أو بدون صورة)',
+        '3️⃣ أرسل صورة (سكرين شوت) للخبر',
         '',
         '⚡ سيتم تلخيص الخبر وإنشاء بوستر Instagram Story جاهز.',
       ].join('\n'))
       return NextResponse.json({ ok: true })
     }
 
-    // Extract URL from message
+    // --- Input detection ---
     const url = extractUrl(text)
-    if (!url) {
-      await sendMessage(chatId, '❌ لم أجد رابطاً في رسالتك. أرسل رابط الخبر.')
+    const hasPhoto = !!(msg.photo && msg.photo.length > 0)
+    const hasUrl = !!url
+    const cleanText = text.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
+    const hasText = cleanText.length > 0
+
+    if (!hasUrl && !hasPhoto && !hasText) {
+      await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
       return NextResponse.json({ ok: true })
     }
 
-    // Notify user that processing started
-    await sendMessage(chatId, '⏳ جاري المعالجة...\n📰 قراءة المقال → ✍️ تلخيص → 🎨 تصميم')
+    await sendMessage(chatId, '⏳ جاري المعالجة...\n📰 قراءة → ✍️ تلخيص → 🎨 تصميم')
 
-    // Step 1: Scrape the article
-    let article
-    try {
-      article = await scrapeArticle(url)
-    } catch {
-      await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
-      return NextResponse.json({ ok: true })
-    }
-
-    if (!article.content && !article.title) {
-      await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
-      return NextResponse.json({ ok: true })
-    }
-
-    // Step 2: Handle image
+    // Download Telegram photo if present (used across multiple branches)
     let imageBase64: string | null = null
-    let imageUrl: string | null = article.ogImage
-
-    // If user sent a photo with the message, use that instead of OG image
-    if (msg.photo && msg.photo.length > 0) {
+    if (hasPhoto) {
       try {
-        // Get the highest resolution photo
-        const bestPhoto = msg.photo[msg.photo.length - 1]
+        const bestPhoto = msg.photo![msg.photo!.length - 1]
         const photoBuffer = await downloadTelegramFile(bestPhoto.file_id)
         imageBase64 = `data:image/jpeg;base64,${photoBuffer.toString('base64')}`
-        imageUrl = null // User photo takes priority
       } catch (err) {
         console.error('[HsnYojz] Failed to download user photo:', err)
-        // Fall back to OG image
       }
     }
 
-    // If we have an OG image URL but no base64, convert it
-    if (!imageBase64 && imageUrl) {
+    let summary: NewsSummary
+
+    if (hasUrl) {
+      // LINK_ONLY or LINK_WITH_PHOTO
+      let article
       try {
-        const imgRes = await fetch(imageUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        })
-        if (imgRes.ok) {
-          const imgBuffer = await imgRes.arrayBuffer()
-          const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
-          imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
-        }
-      } catch (err) {
-        console.error('[HsnYojz] Failed to fetch OG image:', err)
+        article = await scrapeArticle(url)
+      } catch {
+        await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
+        return NextResponse.json({ ok: true })
       }
-    }
 
-    // Step 3: Summarize with Claude
-    let summary
-    try {
-      summary = await summarizeArticle(article.title, article.content, article.siteName)
-    } catch {
-      await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
+      if (!article.content && !article.title) {
+        await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
+        return NextResponse.json({ ok: true })
+      }
+
+      try {
+        summary = await summarizeArticle(article.title, article.content, article.siteName)
+      } catch {
+        await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
+        return NextResponse.json({ ok: true })
+      }
+
+      // If no user photo, try OG image
+      if (!imageBase64 && article.ogImage) {
+        try {
+          const imgRes = await fetch(article.ogImage, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+          })
+          if (imgRes.ok) {
+            const imgBuffer = await imgRes.arrayBuffer()
+            const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
+            imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
+          }
+        } catch (err) {
+          console.error('[HsnYojz] Failed to fetch OG image:', err)
+        }
+      }
+
+    } else if (hasText) {
+      // TEXT_ONLY or TEXT_WITH_PHOTO
+      try {
+        summary = await summarizeFromText(cleanText)
+      } catch {
+        await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
+        return NextResponse.json({ ok: true })
+      }
+
+    } else if (hasPhoto) {
+      // PHOTO_ONLY — OCR via Claude Vision
+      if (!imageBase64) {
+        await sendMessage(chatId, '❌ تعذر تحميل الصورة. حاول مرة أخرى.')
+        return NextResponse.json({ ok: true })
+      }
+      const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+      try {
+        summary = await summarizeFromImage(rawBase64)
+      } catch {
+        await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
+        return NextResponse.json({ ok: true })
+      }
+
+    } else {
+      await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
       return NextResponse.json({ ok: true })
     }
 
-    // Step 4: Generate HTML poster
-    const posterHtml = generatePosterHtml({
-      summary,
-      imageBase64,
-      imageUrl: null, // We already converted to base64
-    })
-
-    // Step 5: Render HTML to PNG
+    // Render poster to PNG
     let pngBuffer: Buffer
     try {
       const baseUrl = getBaseUrl(request)
       const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: posterHtml }),
+        body: JSON.stringify({
+          summary: { headline: summary.headline, bullets: summary.bullets },
+          imageBase64,
+        }),
       })
 
       if (!renderRes.ok) {
@@ -149,10 +171,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // Step 6: Send the poster back as a document (for full quality)
+    // Send the poster back as a document (full quality)
     const timestamp = new Date().toISOString().slice(0, 10)
     const filename = `hsnyojz-${timestamp}.png`
-    const caption = `📰 ${summary.headline}\n\n🔗 ${url}`
+    const caption = `📰 ${summary.headline}${url ? `\n\n🔗 ${url}` : ''}`
 
     await sendDocument(chatId, pngBuffer, filename, caption)
 

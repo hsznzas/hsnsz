@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium', 'puppeteer'],
+    serverComponentsExternalPackages: ['@resvg/resvg-js', 'sharp'],
   },
 }
 

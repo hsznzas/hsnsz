@@ -9,8 +9,64 @@ export interface ScrapedArticle {
   url: string
 }
 
+function isXTwitterUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace('www.', '')
+    return host === 'x.com' || host === 'twitter.com'
+  } catch {
+    return false
+  }
+}
+
+function extractTweetPath(url: string): { user: string; id: string } | null {
+  try {
+    const { pathname } = new URL(url)
+    const match = pathname.match(/^\/([^/]+)\/status\/(\d+)/)
+    if (match) return { user: match[1], id: match[2] }
+  } catch { /* ignore */ }
+  return null
+}
+
+async function scrapeXTweet(url: string): Promise<ScrapedArticle> {
+  const tweet = extractTweetPath(url)
+  if (!tweet) {
+    throw new Error('رابط X/Twitter غير مدعوم — الصق رابط تغريدة مباشرة أو انسخ النص يدوياً واستخدم وضع "نص"')
+  }
+
+  const apiUrl = `https://api.fxtwitter.com/${tweet.user}/status/${tweet.id}`
+  const res = await fetch(apiUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  })
+
+  if (!res.ok) {
+    throw new Error('تعذّر جلب التغريدة — تأكد من صحة الرابط')
+  }
+
+  const data = await res.json()
+  const t = data?.tweet
+  if (!t?.text) {
+    throw new Error('لم يتم العثور على محتوى التغريدة')
+  }
+
+  const authorName = t.author?.name || tweet.user
+  const content = t.text
+  const ogImage = t.media?.photos?.[0]?.url || t.author?.avatar_url || null
+
+  return {
+    title: `${authorName}: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''}`,
+    content,
+    ogImage,
+    siteName: `X (@${tweet.user})`,
+    url,
+  }
+}
+
 export async function scrapeArticle(url: string): Promise<ScrapedArticle> {
   try {
+    if (isXTwitterUrl(url)) {
+      return await scrapeXTweet(url)
+    }
+
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',

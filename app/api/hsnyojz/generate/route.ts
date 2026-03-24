@@ -1,64 +1,75 @@
 // HsnYojz - Generate API (for browser preview)
-// Same pipeline as Telegram webhook but returns JSON with poster data
+// Supports: URL, raw text, image (base64), or combinations
 
 import { NextRequest, NextResponse } from 'next/server'
 import { scrapeArticle } from '@/lib/hsnyojz/scraper'
-import { summarizeArticle } from '@/lib/hsnyojz/summarizer'
-import { generatePosterHtml } from '@/lib/hsnyojz/template'
+import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary } from '@/lib/hsnyojz/summarizer'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json()
+    const { url, text, imageBase64: userImageBase64 } = await request.json()
 
-    if (!url) {
-      return NextResponse.json({ error: 'Missing url' }, { status: 400 })
+    if (!url && !text && !userImageBase64) {
+      return NextResponse.json({ error: 'أرسل رابط أو نص أو صورة' }, { status: 400 })
     }
 
-    // Step 1: Scrape
-    const article = await scrapeArticle(url)
+    let summary: NewsSummary
+    let imageBase64: string | null = userImageBase64 || null
 
-    if (!article.content && !article.title) {
-      return NextResponse.json({ error: 'Could not extract content from this URL' }, { status: 400 })
-    }
+    if (url) {
+      // LINK_ONLY or LINK_WITH_IMAGE
+      const article = await scrapeArticle(url)
 
-    // Step 2: Fetch OG image as base64
-    let imageBase64: string | null = null
-    if (article.ogImage) {
-      try {
-        const imgRes = await fetch(article.ogImage, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        })
-        if (imgRes.ok) {
-          const imgBuffer = await imgRes.arrayBuffer()
-          const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
-          imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
-        }
-      } catch {
-        // Skip image if fetch fails
+      if (!article.content && !article.title) {
+        return NextResponse.json(
+          { error: 'تعذّر استخراج محتوى من هذا الرابط — جرّب نسخ النص يدوياً واستخدم وضع "نص"' },
+          { status: 400 }
+        )
       }
+
+      summary = await summarizeArticle(article.title, article.content, article.siteName)
+
+      if (!imageBase64 && article.ogImage) {
+        try {
+          const imgRes = await fetch(article.ogImage, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+          })
+          if (imgRes.ok) {
+            const imgBuffer = await imgRes.arrayBuffer()
+            const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
+            imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
+          }
+        } catch {
+          // Skip image if fetch fails
+        }
+      }
+
+    } else if (text) {
+      // TEXT_ONLY or TEXT_WITH_IMAGE
+      summary = await summarizeFromText(text)
+
+    } else if (userImageBase64) {
+      // IMAGE_ONLY — OCR via Claude Vision
+      const rawBase64 = userImageBase64.replace(/^data:image\/\w+;base64,/, '')
+      summary = await summarizeFromImage(rawBase64)
+
+    } else {
+      return NextResponse.json({ error: 'No valid input provided' }, { status: 400 })
     }
 
-    // Step 3: Summarize
-    const summary = await summarizeArticle(article.title, article.content, article.siteName)
-
-    // Step 4: Generate HTML
-    const posterHtml = generatePosterHtml({
-      summary,
-      imageBase64,
-      imageUrl: null,
-    })
-
-    // Step 5: Render to PNG
     let posterBase64: string | null = null
     try {
       const baseUrl = getBaseUrl(request)
       const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: posterHtml }),
+        body: JSON.stringify({
+          summary: { headline: summary.headline, bullets: summary.bullets },
+          imageBase64,
+        }),
       })
 
       if (renderRes.ok) {
@@ -74,11 +85,6 @@ export async function POST(request: NextRequest) {
         headline: summary.headline,
         bullets: summary.bullets,
         sourceLabel: summary.sourceLabel,
-      },
-      article: {
-        title: article.title,
-        siteName: article.siteName,
-        ogImage: article.ogImage,
       },
       posterBase64,
     })

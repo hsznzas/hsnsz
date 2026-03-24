@@ -41,3 +41,7 @@ next-env.d.ts
 # Testing
 coverage/
 data/*.json
+
+# HsnYojz source archives
+hsnyojz-module.tar
+font/
