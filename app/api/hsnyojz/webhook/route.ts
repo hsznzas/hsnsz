@@ -35,7 +35,7 @@ const PENDING_TTL_MS = 30 * 60 * 1000 // 30 min
 
 function cleanStale() {
   const now = Date.now()
-  for (const [key, val] of pendingPosters) {
+  for (const [key, val] of Array.from(pendingPosters.entries())) {
     if (now - val.createdAt > PENDING_TTL_MS) {
       pendingPosters.delete(key)
       awaitingEdit.delete(key)
