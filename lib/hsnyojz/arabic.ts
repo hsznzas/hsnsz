@@ -48,7 +48,9 @@ export interface HeadlineWord {
 
 /**
  * Process a headline into word segments for flex rendering.
- * - Arabic words: reshaped + bidi-reversed individually
+ * - Consecutive Arabic words are reshaped as a group so letter forms
+ *   (initial/medial/final) are computed with full context, then split
+ *   back into individual words for per-word flex layout.
  * - Consecutive Latin words are grouped together (e.g. "Vision Pro" stays as one unit)
  * - Returns metadata so the caller can assign per-word font (Manal vs SourceSerif)
  */
@@ -56,24 +58,36 @@ export function processArabicWords(text: string): HeadlineWord[] {
   const rawWords = text.split(/\s+/).filter(Boolean)
   const segments: HeadlineWord[] = []
 
+  let arabicBuffer: string[] = []
   let latinBuffer: string[] = []
 
-  const flushLatin = () => {
-    if (latinBuffer.length > 0) {
-      segments.push({ text: latinBuffer.join(' '), isLatin: true })
-      latinBuffer = []
+  const flushArabic = () => {
+    if (arabicBuffer.length === 0) return
+    const joined = arabicBuffer.join(' ')
+    const reshaped = ArabicReshaper.convertArabic(joined)
+    const reshapedWords = reshaped.split(' ').filter(Boolean)
+    for (const w of reshapedWords) {
+      segments.push({ text: applyBidiReorder(w), isLatin: false })
     }
+    arabicBuffer = []
+  }
+
+  const flushLatin = () => {
+    if (latinBuffer.length === 0) return
+    segments.push({ text: latinBuffer.join(' '), isLatin: true })
+    latinBuffer = []
   }
 
   for (const word of rawWords) {
     if (isArabicWord(word)) {
       flushLatin()
-      const reshaped = ArabicReshaper.convertArabic(word)
-      segments.push({ text: applyBidiReorder(reshaped), isLatin: false })
+      arabicBuffer.push(word)
     } else {
+      flushArabic()
       latinBuffer.push(word)
     }
   }
+  flushArabic()
   flushLatin()
 
   return segments

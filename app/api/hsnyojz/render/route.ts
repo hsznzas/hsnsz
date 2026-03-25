@@ -125,7 +125,7 @@ function buildPoster(
         alignItems: 'baseline',
         color: '#000000',
         lineHeight: 1.15,
-        gap: '4px 48px',
+        gap: '4px 24px',
         width: '100%',
       },
     },
@@ -178,7 +178,7 @@ function buildPoster(
           justifyContent: 'flex-start',
           alignItems: 'baseline',
           width: '100%',
-          gap: '2px 10px',
+          gap: '2px 20px',
         },
       },
       el('span', {
