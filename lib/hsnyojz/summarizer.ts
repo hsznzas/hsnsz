@@ -8,10 +8,16 @@ export interface NewsSummary {
   sourceLabel: string
 }
 
+export interface SummarizeExtras {
+  sourceOverride?: string
+  direction?: string
+}
+
 export async function summarizeArticle(
   title: string,
   content: string,
-  siteName: string | null
+  siteName: string | null,
+  extras?: SummarizeExtras,
 ): Promise<NewsSummary> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is not configured')
@@ -19,13 +25,17 @@ export async function summarizeArticle(
 
   const systemPrompt = await getPrompt()
 
-  const userMessage = `لخّص هذا الخبر:
+  let userMessage = `لخّص هذا الخبر:
 
 العنوان: ${title}
 المصدر: ${siteName || 'غير معروف'}
 
 المحتوى:
 ${content.slice(0, 4000)}`
+
+  if (extras?.direction) {
+    userMessage += `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}`
+  }
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -54,20 +64,29 @@ ${content.slice(0, 4000)}`
     const textContent = data?.content?.[0]?.text
     if (!textContent) throw new Error('No response from Claude API')
 
-    return parseJsonResponse(textContent)
+    const result = parseJsonResponse(textContent)
+    if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
+    return result
   } catch (error) {
     console.error('[HsnYojz Summarizer] Error:', error)
     throw error
   }
 }
 
-export async function summarizeFromText(rawText: string): Promise<NewsSummary> {
+export async function summarizeFromText(
+  rawText: string,
+  extras?: SummarizeExtras,
+): Promise<NewsSummary> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is not configured')
   }
 
   const systemPrompt = await getPrompt()
-  const userMessage = `لخّص هذا النص الإخباري:\n\n${rawText.slice(0, 4000)}`
+  let userMessage = `لخّص هذا النص الإخباري:\n\n${rawText.slice(0, 4000)}`
+
+  if (extras?.direction) {
+    userMessage += `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}`
+  }
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -95,6 +114,7 @@ export async function summarizeFromText(rawText: string): Promise<NewsSummary> {
     if (!textContent) throw new Error('No response from Claude API')
 
     const result = parseJsonResponse(textContent)
+    if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
     console.error('[HsnYojz summarizeFromText] Error:', error)
@@ -102,7 +122,10 @@ export async function summarizeFromText(rawText: string): Promise<NewsSummary> {
   }
 }
 
-export async function summarizeFromImage(imageBase64: string): Promise<NewsSummary> {
+export async function summarizeFromImage(
+  imageBase64: string,
+  extras?: SummarizeExtras,
+): Promise<NewsSummary> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is not configured')
   }
@@ -135,7 +158,8 @@ export async function summarizeFromImage(imageBase64: string): Promise<NewsSumma
               },
               {
                 type: 'text',
-                text: 'اقرأ النص في هذه الصورة ولخصه كخبر عربي. استخرج المعلومات الرئيسية وأنشئ عنواناً و 2-3 نقاط ملخصة. أجب بصيغة JSON المطلوبة فقط.',
+                text: 'اقرأ النص في هذه الصورة ولخصه كخبر عربي. استخرج المعلومات الرئيسية وأنشئ عنواناً و 2-3 نقاط ملخصة. أجب بصيغة JSON المطلوبة فقط.'
+                  + (extras?.direction ? `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}` : ''),
               },
             ],
           },
@@ -153,6 +177,7 @@ export async function summarizeFromImage(imageBase64: string): Promise<NewsSumma
     if (!textContent) throw new Error('No response from Claude API')
 
     const result = parseJsonResponse(textContent)
+    if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
     console.error('[HsnYojz summarizeFromImage] Error:', error)

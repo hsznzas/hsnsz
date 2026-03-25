@@ -14,7 +14,7 @@ import {
   type TelegramUpdate,
 } from '@/lib/hsnyojz/telegram'
 import { scrapeArticle } from '@/lib/hsnyojz/scraper'
-import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary } from '@/lib/hsnyojz/summarizer'
+import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary, type SummarizeExtras } from '@/lib/hsnyojz/summarizer'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -62,6 +62,25 @@ const APPROVAL_BUTTONS = [
   ],
 ]
 
+function parseExtras(text: string): { cleaned: string; extras: SummarizeExtras } {
+  const extras: SummarizeExtras = {}
+  let cleaned = text
+
+  const sourceMatch = cleaned.match(/\+source\s+(.+)/i)
+  if (sourceMatch) {
+    extras.sourceOverride = sourceMatch[1].trim()
+    cleaned = cleaned.replace(sourceMatch[0], '').trim()
+  }
+
+  const dirMatch = cleaned.match(/\+dir\s+(.+)/i)
+  if (dirMatch) {
+    extras.direction = dirMatch[1].trim()
+    cleaned = cleaned.replace(dirMatch[0], '').trim()
+  }
+
+  return { cleaned, extras }
+}
+
 // ── Main handler ──
 
 export async function POST(request: NextRequest) {
@@ -85,9 +104,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    const text = msg.text || msg.caption || ''
+    const rawText = msg.text || msg.caption || ''
 
-    if (text === '/start') {
+    if (rawText === '/start') {
       awaitingEdit.delete(chatId)
       pendingPosters.delete(chatId)
       await sendMessage(chatId, [
@@ -98,6 +117,15 @@ export async function POST(request: NextRequest) {
         '2️⃣ أرسل نص خبر (مع أو بدون صورة)',
         '3️⃣ أرسل صورة (سكرين شوت) للخبر',
         '',
+        '📎 <b>خيارات إضافية (اختيارية):</b>',
+        '<code>+source اسم المصدر</code> — تحديد المصدر يدوياً',
+        '<code>+dir توجيه</code> — إضافة زاوية أو مقارنة',
+        '',
+        '💡 مثال:',
+        '<code>https://example.com/news</code>',
+        '<code>+source رويترز</code>',
+        '<code>+dir قارن هذا باستثمار البيتكوين قبل 5 سنوات</code>',
+        '',
         '⚡ سيتم تلخيص الخبر ثم عرضه عليك للموافقة قبل التصميم.',
       ].join('\n'))
       return NextResponse.json({ ok: true })
@@ -106,15 +134,16 @@ export async function POST(request: NextRequest) {
     // ── Awaiting edited text ──
 
     if (awaitingEdit.has(chatId)) {
-      return handleEditedText(chatId, text)
+      return handleEditedText(chatId, rawText)
     }
 
     // ── New input ──
 
-    const url = extractUrl(text)
+    const { cleaned: textWithoutExtras, extras } = parseExtras(rawText)
+    const url = extractUrl(textWithoutExtras)
     const hasPhoto = !!(msg.photo && msg.photo.length > 0)
     const hasUrl = !!url
-    const cleanText = text.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
+    const cleanText = textWithoutExtras.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
     const hasText = cleanText.length > 0
 
     if (!hasUrl && !hasPhoto && !hasText) {
@@ -155,7 +184,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        summary = await summarizeArticle(article.title, article.content, article.siteName)
+        summary = await summarizeArticle(article.title, article.content, article.siteName, extras)
       } catch {
         await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
         return NextResponse.json({ ok: true })
@@ -178,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     } else if (hasText) {
       try {
-        summary = await summarizeFromText(cleanText)
+        summary = await summarizeFromText(cleanText, extras)
       } catch {
         await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
         return NextResponse.json({ ok: true })
@@ -191,7 +220,7 @@ export async function POST(request: NextRequest) {
       }
       const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
       try {
-        summary = await summarizeFromImage(rawBase64)
+        summary = await summarizeFromImage(rawBase64, extras)
       } catch {
         await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
         return NextResponse.json({ ok: true })
