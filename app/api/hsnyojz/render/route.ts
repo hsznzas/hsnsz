@@ -46,7 +46,17 @@ function getArabicDate(): string {
   return `${toArabic(now.getDate())} ${months[now.getMonth()]} ${toArabic(now.getFullYear())}`
 }
 
-const SIDE_PADDING = 130
+const DEFAULTS = {
+  sidePadding: 189,
+  headlineGap: '0px 19px',
+  headlineLetterSpacing: -2.5,
+  headlineLineHeight: 0.85,
+  bulletGap: '0px 9px',
+  bulletLetterSpacing: -0.5,
+}
+
+export type StyleOverrides = Partial<typeof DEFAULTS>
+
 const ARABIC_HEADLINE_SIZE = 96
 const ENGLISH_HEADLINE_SIZE = 59
 const ARABIC_BULLET_SIZE = 55
@@ -56,12 +66,22 @@ const TITLE_ZONE_TOP = 540
 const TITLE_ZONE_HEIGHT = 400
 const BULLETS_TOP = TITLE_ZONE_TOP + TITLE_ZONE_HEIGHT
 
+function parseGapStr(gap: string): { row: number; col: number } {
+  const parts = gap.split(/\s+/)
+  return { row: parseInt(parts[0]) || 0, col: parseInt(parts[1] ?? parts[0]) || 0 }
+}
+
 function buildPoster(
   headline: string,
   bullets: string[],
   bgDataUri: string,
   sourceLabel?: string,
+  overrides?: StyleOverrides,
 ): SatoriNode {
+  const s = { ...DEFAULTS, ...overrides }
+  const SIDE_PADDING = s.sidePadding
+  const hlGap = parseGapStr(s.headlineGap)
+  const blGap = parseGapStr(s.bulletGap)
   // ── Full-canvas background ──
 
   const bgImage = el('img', {
@@ -124,8 +144,7 @@ function buildPoster(
         justifyContent: 'flex-start',
         alignItems: 'baseline',
         color: '#000000',
-        lineHeight: 1.05,
-        gap: '0px 24px',
+        lineHeight: s.headlineLineHeight,
         width: '100%',
       },
     },
@@ -136,9 +155,11 @@ function buildPoster(
           fontFamily: word.isLatin ? 'SourceSerif' : 'Manal',
           fontWeight: word.isLatin ? 600 : 400,
           fontSize: word.isLatin ? ENGLISH_HEADLINE_SIZE : ARABIC_HEADLINE_SIZE,
-          letterSpacing: word.isLatin ? 0.5 : -2,
+          letterSpacing: word.isLatin ? 0.5 : s.headlineLetterSpacing,
           paddingLeft: word.isLatin ? 10 : 0,
           paddingRight: word.isLatin ? 10 : 0,
+          marginLeft: hlGap.col,
+          marginBottom: hlGap.row,
         },
       }, word.text),
     ),
@@ -199,7 +220,6 @@ function buildPoster(
           justifyContent: 'flex-start',
           alignItems: 'baseline',
           flex: 1,
-          gap: '2px 14px',
         },
       },
       ...words.map((word) =>
@@ -210,9 +230,11 @@ function buildPoster(
             fontWeight: word.isLatin ? 600 : 400,
             fontSize: word.isLatin ? ENGLISH_BULLET_SIZE : ARABIC_BULLET_SIZE,
             color: '#2a3d66',
-            letterSpacing: word.isLatin ? 0.3 : 0,
+            letterSpacing: word.isLatin ? 0.3 : s.bulletLetterSpacing,
             paddingLeft: word.isLatin ? 6 : 0,
             paddingRight: word.isLatin ? 6 : 0,
+            marginLeft: blGap.col,
+            marginBottom: blGap.row,
           },
         }, word.text),
       ),
@@ -334,7 +356,7 @@ function buildPoster(
 
 export async function POST(request: NextRequest) {
   try {
-    const { summary, imageBase64 } = await request.json()
+    const { summary, imageBase64, styleOverrides } = await request.json()
 
     if (!summary?.headline || !summary?.bullets) {
       return NextResponse.json({ error: 'Missing summary data' }, { status: 400 })
@@ -350,6 +372,7 @@ export async function POST(request: NextRequest) {
       summary.bullets,
       bgDataUri,
       summary.sourceLabel,
+      styleOverrides,
     )
 
     const svg = await satori(element as React.ReactNode, {
