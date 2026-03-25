@@ -56,7 +56,7 @@ async function scrapeXTweet(url: string): Promise<ScrapedArticle> {
     title: `${authorName}: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''}`,
     content,
     ogImage,
-    siteName: `X (@${tweet.user})`,
+    siteName: `${authorName} (@${tweet.user}) via X`,
     url,
   }
 }

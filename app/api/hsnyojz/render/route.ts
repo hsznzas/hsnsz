@@ -47,12 +47,19 @@ function getArabicDate(): string {
 }
 
 const DEFAULTS = {
-  sidePadding: 189,
-  headlineGap: '0px 19px',
+  sidePadding: 91,
+  headlineWordGap: 19,
   headlineLetterSpacing: -2.5,
   headlineLineHeight: 0.85,
-  bulletGap: '0px 9px',
-  bulletLetterSpacing: -0.5,
+  headlineTextScale: 100,
+  bulletWordGap: 9,
+  bulletLetterSpacing: 0,
+  bulletLineHeight: 0.7,
+  bulletTextScale: 123,
+  bulletLineSpacing: 96,
+  sourceSpacing: 38,
+  sourceTextScale: 200,
+  footerBottom: 200,
 }
 
 export type StyleOverrides = Partial<typeof DEFAULTS>
@@ -66,11 +73,6 @@ const TITLE_ZONE_TOP = 540
 const TITLE_ZONE_HEIGHT = 400
 const BULLETS_TOP = TITLE_ZONE_TOP + TITLE_ZONE_HEIGHT
 
-function parseGapStr(gap: string): { row: number; col: number } {
-  const parts = gap.split(/\s+/)
-  return { row: parseInt(parts[0]) || 0, col: parseInt(parts[1] ?? parts[0]) || 0 }
-}
-
 function buildPoster(
   headline: string,
   bullets: string[],
@@ -80,8 +82,14 @@ function buildPoster(
 ): SatoriNode {
   const s = { ...DEFAULTS, ...overrides }
   const SIDE_PADDING = s.sidePadding
-  const hlGap = parseGapStr(s.headlineGap)
-  const blGap = parseGapStr(s.bulletGap)
+
+  const hlScale = s.headlineTextScale / 100
+  const blScale = s.bulletTextScale / 100
+  const scaledArabicHL = Math.round(ARABIC_HEADLINE_SIZE * hlScale)
+  const scaledEnglishHL = Math.round(ENGLISH_HEADLINE_SIZE * hlScale)
+  const scaledArabicBL = Math.round(ARABIC_BULLET_SIZE * blScale)
+  const scaledEnglishBL = Math.round(ENGLISH_BULLET_SIZE * blScale)
+
   // ── Full-canvas background ──
 
   const bgImage = el('img', {
@@ -114,8 +122,8 @@ function buildPoster(
           style: {
             display: 'flex',
             background: 'rgba(240,240,240,0.7)',
-            padding: '2px 8px',
-            fontSize: 20,
+            padding: `2px ${s.sourceSpacing}px`,
+            fontSize: Math.round(20 * s.sourceTextScale / 100),
             fontWeight: 700,
             fontFamily: 'Manal',
             color: '#5a6061',
@@ -154,12 +162,11 @@ function buildPoster(
           display: 'flex',
           fontFamily: word.isLatin ? 'SourceSerif' : 'Manal',
           fontWeight: word.isLatin ? 600 : 400,
-          fontSize: word.isLatin ? ENGLISH_HEADLINE_SIZE : ARABIC_HEADLINE_SIZE,
+          fontSize: word.isLatin ? scaledEnglishHL : scaledArabicHL,
           letterSpacing: word.isLatin ? 0.5 : s.headlineLetterSpacing,
           paddingLeft: word.isLatin ? 10 : 0,
           paddingRight: word.isLatin ? 10 : 0,
-          marginLeft: hlGap.col,
-          marginBottom: hlGap.row,
+          marginLeft: s.headlineWordGap,
         },
       }, word.text),
     ),
@@ -205,7 +212,7 @@ function buildPoster(
         display: 'flex',
         fontFamily: 'SourceSerif',
         fontWeight: 400,
-        fontSize: ARABIC_BULLET_SIZE,
+        fontSize: scaledArabicBL,
         color: '#2a3d66',
       },
     }, '←'))
@@ -220,6 +227,7 @@ function buildPoster(
           justifyContent: 'flex-start',
           alignItems: 'baseline',
           flex: 1,
+          lineHeight: s.bulletLineHeight,
         },
       },
       ...words.map((word) =>
@@ -228,13 +236,12 @@ function buildPoster(
             display: 'flex',
             fontFamily: word.isLatin ? 'SourceSerif' : 'Manal',
             fontWeight: word.isLatin ? 600 : 400,
-            fontSize: word.isLatin ? ENGLISH_BULLET_SIZE : ARABIC_BULLET_SIZE,
+            fontSize: word.isLatin ? scaledEnglishBL : scaledArabicBL,
             color: '#2a3d66',
             letterSpacing: word.isLatin ? 0.3 : s.bulletLetterSpacing,
             paddingLeft: word.isLatin ? 6 : 0,
             paddingRight: word.isLatin ? 6 : 0,
-            marginLeft: blGap.col,
-            marginBottom: blGap.row,
+            marginLeft: s.bulletWordGap,
           },
         }, word.text),
       ),
@@ -261,7 +268,7 @@ function buildPoster(
       style: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 44,
+        gap: s.bulletLineSpacing,
         width: '100%',
       },
     },
@@ -274,7 +281,7 @@ function buildPoster(
       style: {
         display: 'flex',
         marginTop: 'auto',
-        paddingBottom: 80,
+        paddingBottom: s.footerBottom,
         width: '100%',
         justifyContent: 'center',
       },
@@ -318,7 +325,7 @@ function buildPoster(
         display: 'flex',
         position: 'absolute',
         top: 24,
-        left: 32,
+        right: 32,
       },
     },
     el('span', {

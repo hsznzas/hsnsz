@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          summary: { headline: summary.headline, bullets: summary.bullets },
+          summary,
           imageBase64,
         }),
       })

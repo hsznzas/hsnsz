@@ -7,14 +7,63 @@ function apiUrl(method: string): string {
   return `https://api.telegram.org/bot${BOT_TOKEN}/${method}`
 }
 
-export async function sendMessage(chatId: string | number, text: string): Promise<void> {
-  await fetch(apiUrl('sendMessage'), {
+export async function sendMessage(chatId: string | number, text: string): Promise<number | null> {
+  const res = await fetch(apiUrl('sendMessage'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
+    }),
+  })
+  const data = await res.json()
+  return data?.result?.message_id ?? null
+}
+
+type InlineButton = { text: string; callback_data: string }
+
+export async function sendMessageWithButtons(
+  chatId: string | number,
+  text: string,
+  buttons: InlineButton[][],
+): Promise<number | null> {
+  const res = await fetch(apiUrl('sendMessage'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: buttons },
+    }),
+  })
+  const data = await res.json()
+  return data?.result?.message_id ?? null
+}
+
+export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+  await fetch(apiUrl('answerCallbackQuery'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      text,
+    }),
+  })
+}
+
+export async function editMessageReplyMarkup(
+  chatId: string | number,
+  messageId: number,
+): Promise<void> {
+  await fetch(apiUrl('editMessageReplyMarkup'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: { inline_keyboard: [] },
     }),
   })
 }
@@ -53,7 +102,6 @@ export function isAdminChat(chatId: number | string): boolean {
   return String(chatId) === ADMIN_CHAT_ID
 }
 
-// Telegram message types
 export interface TelegramMessage {
   message_id: number
   chat: { id: number; type: string }
@@ -62,9 +110,17 @@ export interface TelegramMessage {
   caption?: string
 }
 
+export interface TelegramCallbackQuery {
+  id: string
+  from: { id: number }
+  message?: TelegramMessage
+  data?: string
+}
+
 export interface TelegramUpdate {
   update_id: number
   message?: TelegramMessage
+  callback_query?: TelegramCallbackQuery
 }
 
 // Extract URL from message text

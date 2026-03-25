@@ -1,36 +1,12 @@
-// HsnYojz - AI Summarizer
-// Uses Claude API to summarize news articles into Arabic bullet points
+import { getPrompt } from '@/lib/hsnyojz/prompt-config'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
 
 export interface NewsSummary {
-  headline: string       // Arabic headline (bold, top of poster)
-  bullets: string[]      // 2-3 Arabic bullet points
-  sourceLabel: string    // Source name in Arabic if possible
+  headline: string
+  bullets: string[]
+  sourceLabel: string
 }
-
-const SYSTEM_PROMPT = `أنت مُلخِّص أخبار محترف. مهمتك تلخيص المقالات الإخبارية إلى نقاط موجزة باللغة العربية.
-
-القواعد:
-1. اكتب عنواناً رئيسياً قصيراً وجذاباً (5-10 كلمات) يلخص الخبر
-2. اكتب 2-3 نقاط فقط، كل نقطة جملة واحدة قصيرة ومباشرة
-3. استخدم العربية الفصحى البسيطة مع إمكانية استخدام كلمات إنجليزية للمصطلحات التقنية أو أسماء الشركات
-4. لا تستخدم علامات ترقيم زائدة
-5. كل نقطة يجب أن تبدأ بفعل أو معلومة مباشرة
-6. لا تضف رأيك الشخصي، فقط الحقائق
-
-الشكل المطلوب (JSON فقط):
-{
-  "headline": "العنوان الرئيسي هنا",
-  "bullets": [
-    "النقطة الأولى",
-    "النقطة الثانية",
-    "النقطة الثالثة"
-  ],
-  "sourceLabel": "اسم المصدر"
-}
-
-أجب بـ JSON فقط بدون أي نص إضافي أو markdown.`
 
 export async function summarizeArticle(
   title: string,
@@ -41,13 +17,15 @@ export async function summarizeArticle(
     throw new Error('ANTHROPIC_API_KEY is not configured')
   }
 
+  const systemPrompt = await getPrompt()
+
   const userMessage = `لخّص هذا الخبر:
 
 العنوان: ${title}
 المصدر: ${siteName || 'غير معروف'}
 
 المحتوى:
-${content.slice(0, 4000)}` // Limit content to avoid token overflow
+${content.slice(0, 4000)}`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -60,7 +38,7 @@ ${content.slice(0, 4000)}` // Limit content to avoid token overflow
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           { role: 'user', content: userMessage },
         ],
@@ -88,6 +66,7 @@ export async function summarizeFromText(rawText: string): Promise<NewsSummary> {
     throw new Error('ANTHROPIC_API_KEY is not configured')
   }
 
+  const systemPrompt = await getPrompt()
   const userMessage = `لخّص هذا النص الإخباري:\n\n${rawText.slice(0, 4000)}`
 
   try {
@@ -101,7 +80,7 @@ export async function summarizeFromText(rawText: string): Promise<NewsSummary> {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
@@ -128,6 +107,8 @@ export async function summarizeFromImage(imageBase64: string): Promise<NewsSumma
     throw new Error('ANTHROPIC_API_KEY is not configured')
   }
 
+  const systemPrompt = await getPrompt()
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -139,7 +120,7 @@ export async function summarizeFromImage(imageBase64: string): Promise<NewsSumma
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           {
             role: 'user',
@@ -188,7 +169,7 @@ function parseJsonResponse(textContent: string): NewsSummary {
 
   const result = JSON.parse(jsonStr) as NewsSummary
 
-  if (!result.headline || !result.bullets || result.bullets.length === 0) {
+  if (!result.headline || !Array.isArray(result.bullets)) {
     throw new Error('Invalid summary structure from AI')
   }
 

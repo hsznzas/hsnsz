@@ -181,3 +181,20 @@ COMMENT ON TABLE quran_sessions IS 'Quran recitation speed tracker - records pag
 COMMENT ON COLUMN quran_sessions.start_page IS 'First page recited in this session';
 COMMENT ON COLUMN quran_sessions.end_page IS 'Last page recited (NULL while active)';
 COMMENT ON COLUMN quran_sessions.duration_seconds IS 'Total seconds elapsed (set on stop)';
+
+-- =============================================
+-- HsnYojz - System Prompt Config
+-- =============================================
+
+CREATE TABLE hsnyojz_prompt (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  sections JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE hsnyojz_prompt ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all hsnyojz_prompt operations"
+    ON hsnyojz_prompt FOR ALL
+    USING (true)
+    WITH CHECK (true);
