@@ -134,7 +134,7 @@ function buildPoster(
         style: {
           display: 'flex',
           fontFamily: word.isLatin ? 'SourceSerif' : 'Manal',
-          fontWeight: 400,
+          fontWeight: word.isLatin ? 600 : 400,
           fontSize: word.isLatin ? ENGLISH_HEADLINE_SIZE : ARABIC_HEADLINE_SIZE,
           letterSpacing: word.isLatin ? 0.5 : -2,
           paddingLeft: word.isLatin ? 10 : 0,
@@ -207,7 +207,7 @@ function buildPoster(
           style: {
             display: 'flex',
             fontFamily: word.isLatin ? 'SourceSerif' : 'Manal',
-            fontWeight: 400,
+            fontWeight: word.isLatin ? 600 : 400,
             fontSize: word.isLatin ? ENGLISH_BULLET_SIZE : ARABIC_BULLET_SIZE,
             color: '#2a3d66',
             letterSpacing: word.isLatin ? 0.3 : 0,

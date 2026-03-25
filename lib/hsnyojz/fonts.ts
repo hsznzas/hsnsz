@@ -19,13 +19,14 @@ async function loadFont(filename: string): Promise<ArrayBuffer> {
 export async function getManalFonts(): Promise<FontEntry[]> {
   if (fontCache) return fontCache
 
-  const [manalLight, manalMedium, manalBold, manalBlack, serifRegular, serifBold] =
+  const [manalLight, manalMedium, manalBold, manalBlack, serifRegular, serifSemiBold, serifBold] =
     await Promise.all([
       loadFont('ah-manal-light.ttf'),
       loadFont('ah-manal-medium.ttf'),
       loadFont('ah-manal-bold.ttf'),
       loadFont('ah-manal-black.ttf'),
       loadFont('source-serif-4-regular.ttf'),
+      loadFont('source-serif-4-semibold.ttf'),
       loadFont('source-serif-4-bold.ttf'),
     ])
 
@@ -35,6 +36,7 @@ export async function getManalFonts(): Promise<FontEntry[]> {
     { name: 'Manal', data: manalBold, weight: 700, style: 'normal' },
     { name: 'Manal', data: manalBlack, weight: 900, style: 'normal' },
     { name: 'SourceSerif', data: serifRegular, weight: 400, style: 'normal' },
+    { name: 'SourceSerif', data: serifSemiBold, weight: 600, style: 'normal' },
     { name: 'SourceSerif', data: serifBold, weight: 700, style: 'normal' },
   ]
 
