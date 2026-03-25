@@ -46,7 +46,7 @@ function getArabicDate(): string {
   return `${toArabic(now.getDate())} ${months[now.getMonth()]} ${toArabic(now.getFullYear())}`
 }
 
-const SIDE_PADDING = 108
+const SIDE_PADDING = 130
 const ARABIC_HEADLINE_SIZE = 96
 const ENGLISH_HEADLINE_SIZE = 59
 const ARABIC_BULLET_SIZE = 55
@@ -124,8 +124,8 @@ function buildPoster(
         justifyContent: 'flex-start',
         alignItems: 'baseline',
         color: '#000000',
-        lineHeight: 1.15,
-        gap: '4px 24px',
+        lineHeight: 1.05,
+        gap: '0px 24px',
         width: '100%',
       },
     },
@@ -165,10 +165,31 @@ function buildPoster(
 
   // ── Bullets Zone: double-dash prefix, per-word font switching ──
 
+  const ARROW_COL_WIDTH = 64
+
   const bulletRows = bullets.map((bullet) => {
     const words = processArabicWords(bullet)
 
-    return el(
+    const arrowCol = el('div', {
+      style: {
+        display: 'flex',
+        width: ARROW_COL_WIDTH,
+        minWidth: ARROW_COL_WIDTH,
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        marginTop: 6,
+      },
+    }, el('span', {
+      style: {
+        display: 'flex',
+        fontFamily: 'SourceSerif',
+        fontWeight: 400,
+        fontSize: ARABIC_BULLET_SIZE,
+        color: '#2a3d66',
+      },
+    }, '←'))
+
+    const textCol = el(
       'div',
       {
         style: {
@@ -177,20 +198,10 @@ function buildPoster(
           flexWrap: 'wrap',
           justifyContent: 'flex-start',
           alignItems: 'baseline',
-          width: '100%',
-          gap: '2px 20px',
+          flex: 1,
+          gap: '2px 14px',
         },
       },
-      el('span', {
-        style: {
-          display: 'flex',
-          fontFamily: 'SourceSerif',
-          fontWeight: 400,
-          fontSize: ARABIC_BULLET_SIZE,
-          color: '#2a3d66',
-          marginLeft: 32,
-        },
-      }, '←'),
       ...words.map((word) =>
         el('span', {
           style: {
@@ -199,12 +210,26 @@ function buildPoster(
             fontWeight: 400,
             fontSize: word.isLatin ? ENGLISH_BULLET_SIZE : ARABIC_BULLET_SIZE,
             color: '#2a3d66',
-            letterSpacing: word.isLatin ? 0.3 : -1,
+            letterSpacing: word.isLatin ? 0.3 : 0,
             paddingLeft: word.isLatin ? 6 : 0,
             paddingRight: word.isLatin ? 6 : 0,
           },
         }, word.text),
       ),
+    )
+
+    return el(
+      'div',
+      {
+        style: {
+          display: 'flex',
+          flexDirection: 'row-reverse',
+          alignItems: 'flex-start',
+          width: '100%',
+        },
+      },
+      arrowCol,
+      textCol,
     )
   })
 

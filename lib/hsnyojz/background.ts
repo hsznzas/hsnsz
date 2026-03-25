@@ -5,7 +5,7 @@ const H = 1920
 const HERO_H = 860
 
 // The white scrim fades from fully opaque at top → transparent by this y
-const WHITE_FADE_END_Y = 980
+const WHITE_FADE_END_Y = 735
 
 /**
  * Renders the CSS pattern texture as raw RGB pixels (1080x1920).
