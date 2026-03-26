@@ -21,11 +21,7 @@ const SAMPLE = {
   customNotes: '',
 }
 
-const DUMMY_AVATAR_BASE64 = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-  <rect width="120" height="120" rx="8" fill="#e2e8f0"/>
-  <circle cx="60" cy="42" r="22" fill="#94a3b8"/>
-  <ellipse cx="60" cy="100" rx="35" ry="28" fill="#94a3b8"/>
-</svg>`)
+const DUMMY_AVATAR_BASE64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiB2aWV3Qm94PSIwIDAgMTIwIDEyMCI+CiAgPHJlY3Qgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIHJ4PSI4IiBmaWxsPSIjZTJlOGYwIi8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI0MiIgcj0iMjIiIGZpbGw9IiM5NGEzYjgiLz4KICA8ZWxsaXBzZSBjeD0iNjAiIGN5PSIxMDAiIHJ4PSIzNSIgcnk9IjI4IiBmaWxsPSIjOTRhM2I4Ii8+Cjwvc3ZnPg=='
 
 type Params = {
   headlineWordGap: number
@@ -133,6 +129,9 @@ const FLAG_OPTIONS = [
 type Tab = 'poster' | 'prompt'
 
 export default function TunePage() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   const [activeTab, setActiveTab] = useState<Tab>('poster')
 
   // Poster state
@@ -438,11 +437,13 @@ export default function TunePage() {
 
   // ─── Render ───
 
+  if (!mounted) return <div className="min-h-screen bg-slate-100 dark:bg-slate-950" />
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-[1600px] mx-auto px-6 flex gap-1 pt-4 pb-0 items-center">
+        <div className="max-w-[2800px] mx-auto px-6 flex gap-1 pt-4 pb-0 items-center">
           <TabButton active={activeTab === 'poster'} onClick={() => setActiveTab('poster')}>
             Poster Tuner
           </TabButton>
@@ -461,14 +462,31 @@ export default function TunePage() {
 
       {/* ═══ Poster Tuner Tab ═══ */}
       {activeTab === 'poster' && (
-        <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-[1600px] mx-auto">
-          <div className="lg:w-[420px] shrink-0 space-y-5 max-h-[calc(100vh-80px)] overflow-y-auto pb-8">
+        <div className="p-6 max-w-[2800px] mx-auto">
+          <div className="flex items-baseline justify-between mb-5">
             <div>
               <h1 className="text-2xl font-bold">Poster Tuner</h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 Adjust spacing, avatar, and flag — see the poster update live.
               </p>
             </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleReset}
+                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+              >
+                Reset to Defaults
+              </button>
+              <button
+                onClick={handleCopy}
+                className="px-4 py-2 rounded-xl bg-slate-800 dark:bg-slate-700 text-slate-200 text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
+              >
+                {copied ? 'Copied!' : 'Copy Config'}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-6 items-start">
+            <div className="flex-1 min-w-0 columns-1 lg:columns-2 2xl:columns-3 gap-5 [&>*]:break-inside-avoid [&>*]:mb-5">
 
             {/* ─── Hero Image Section ─── */}
             <fieldset className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-3">
@@ -774,7 +792,7 @@ export default function TunePage() {
 
             {/* ─── Code Snippet ─── */}
             <div className="relative">
-              <pre className="p-4 rounded-xl bg-slate-800 text-slate-200 text-xs font-mono overflow-x-auto whitespace-pre">
+              <pre className="p-4 rounded-xl bg-slate-800 text-slate-200 text-xs font-mono overflow-x-auto whitespace-pre max-h-[300px] overflow-y-auto">
                 {codeSnippet}
               </pre>
               <button
@@ -784,36 +802,32 @@ export default function TunePage() {
                 {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
+            </div>
 
-            <button
-              onClick={handleReset}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
-            >
-              Reset to Defaults
-            </button>
-          </div>
-
-          {/* ─── Poster Preview Column ─── */}
-          <div className="flex-1 flex flex-col items-center gap-4">
-            {error && (
-              <div className="p-3 rounded-xl bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300 w-full max-w-sm text-center">
-                {error}
+            {/* ─── Poster Preview Column ─── */}
+            <div className="w-[400px] shrink-0">
+              <div className="sticky top-[80px] flex flex-col items-center gap-4">
+                {error && (
+                  <div className="p-3 rounded-xl bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300 w-full text-center">
+                    {error}
+                  </div>
+                )}
+                {posterUrl && (
+                  <div className="aspect-[9/16] w-full rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700">
+                    <img
+                      src={posterUrl}
+                      alt="Poster preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                {loading && (
+                  <div className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">
+                    Rendering...
+                  </div>
+                )}
               </div>
-            )}
-            {posterUrl && (
-              <div className="aspect-[9/16] w-full max-w-[400px] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700">
-                <img
-                  src={posterUrl}
-                  alt="Poster preview"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            {loading && (
-              <div className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">
-                Rendering...
-              </div>
-            )}
+            </div>
           </div>
         </div>
       )}

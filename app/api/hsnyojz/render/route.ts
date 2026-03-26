@@ -22,6 +22,17 @@ function el(
   ...children: (string | SatoriNode | null | false | undefined)[]
 ): SatoriNode {
   const filtered = children.filter((c): c is string | SatoriNode => c != null && c !== false)
+
+  // Strip undefined style values — Satori doesn't handle them like React does
+  if (props.style && typeof props.style === 'object') {
+    const raw = props.style as Record<string, unknown>
+    const clean: Record<string, unknown> = {}
+    for (const k of Object.keys(raw)) {
+      if (raw[k] !== undefined) clean[k] = raw[k]
+    }
+    props = { ...props, style: clean }
+  }
+
   return {
     type,
     props: {
