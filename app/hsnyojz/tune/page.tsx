@@ -82,12 +82,12 @@ const DEFAULTS: Params = {
   sourceTextScale: 200,
   footerBottom: 200,
   sidePadding: 91,
-  contentTop: 559,
+  contentTop: 607,
   headlineBulletsGap: 94,
   avatarSize: 108,
   avatarBorderRadius: 67,
   avatarGap: 25,
-  avatarOffsetY: 119,
+  avatarOffsetY: 66,
   flagSize: 32,
   flagOffsetBottom: -20,
   flagOffsetHorizontal: 0,
@@ -155,7 +155,7 @@ export default function TunePage() {
   // Avatar/flag state
   const [showAvatar, setShowAvatar] = useState(true)
   const [avatarFile, setAvatarFile] = useState<string | null>(null)
-  const [showFlag, setShowFlag] = useState(true)
+  const [showFlag, setShowFlag] = useState(false)
   const [flagEmoji, setFlagEmoji] = useState('🇺🇸')
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
@@ -167,9 +167,9 @@ export default function TunePage() {
   const [dateOpacity, setDateOpacity] = useState(70)
 
   // Shadow color state
-  const [headlineShadowColor, setHeadlineShadowColor] = useState('#000000')
-  const [bulletShadowColor, setBulletShadowColor] = useState('#000000')
-  const [sourceShadowColor, setSourceShadowColor] = useState('#000000')
+  const [headlineShadowColor, setHeadlineShadowColor] = useState('#ffffff')
+  const [bulletShadowColor, setBulletShadowColor] = useState('#ffffff')
+  const [sourceShadowColor, setSourceShadowColor] = useState('#ffffff')
   const [dateShadowColor, setDateShadowColor] = useState('#000000')
 
   // Custom notes state
