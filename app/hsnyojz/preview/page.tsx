@@ -107,11 +107,19 @@ export default function HsnYojzPreview() {
     >
       <div className="max-w-2xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">حسن يوجز</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            أداة إنشاء بوسترات الأخبار — اختبار مباشر
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">حسن يوجز</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              أداة إنشاء بوسترات الأخبار — اختبار مباشر
+            </p>
+          </div>
+          <a
+            href="/hsnyojz/tune"
+            className="px-4 py-2.5 rounded-xl bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            🎛 صفحة الضبط
+          </a>
         </div>
 
         {/* Mode Tabs */}

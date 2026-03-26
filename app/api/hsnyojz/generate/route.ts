@@ -1,65 +1,61 @@
 // HsnYojz - Generate API (for browser preview)
-// Supports: URL, raw text, image (base64), or combinations
+// Uses the engine layer for processing + rendering
 
 import { NextRequest, NextResponse } from 'next/server'
-import { scrapeArticle } from '@/lib/hsnyojz/scraper'
-import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary } from '@/lib/hsnyojz/summarizer'
+import {
+  processSources,
+  type PosterConfig,
+} from '@/lib/hsnyojz/engine'
+import { resolveAvatar } from '@/lib/hsnyojz/avatars'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, text, imageBase64: userImageBase64 } = await request.json()
+    const {
+      url,
+      text,
+      imageBase64: userImageBase64,
+      style = 'default',
+      bulletCount = 3,
+      customFramingPrompt,
+    } = await request.json()
 
     if (!url && !text && !userImageBase64) {
       return NextResponse.json({ error: 'أرسل رابط أو نص أو صورة' }, { status: 400 })
     }
 
-    let summary: NewsSummary
-    let imageBase64: string | null = userImageBase64 || null
+    let sourceType: PosterConfig['sourceType'] = 'text'
+    let rawContent: string | undefined
 
     if (url) {
-      // LINK_ONLY or LINK_WITH_IMAGE
-      const article = await scrapeArticle(url)
-
-      if (!article.content && !article.title) {
-        return NextResponse.json(
-          { error: 'تعذّر استخراج محتوى من هذا الرابط — جرّب نسخ النص يدوياً واستخدم وضع "نص"' },
-          { status: 400 }
-        )
-      }
-
-      summary = await summarizeArticle(article.title, article.content, article.siteName)
-
-      if (!imageBase64 && article.ogImage) {
-        try {
-          const imgRes = await fetch(article.ogImage, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-          })
-          if (imgRes.ok) {
-            const imgBuffer = await imgRes.arrayBuffer()
-            const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
-            imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
-          }
-        } catch {
-          // Skip image if fetch fails
-        }
-      }
-
+      sourceType = 'link'
+    } else if (userImageBase64 && !text) {
+      sourceType = 'image'
+      rawContent = userImageBase64
     } else if (text) {
-      // TEXT_ONLY or TEXT_WITH_IMAGE
-      summary = await summarizeFromText(text)
-
-    } else if (userImageBase64) {
-      // IMAGE_ONLY — OCR via Claude Vision
-      const rawBase64 = userImageBase64.replace(/^data:image\/\w+;base64,/, '')
-      summary = await summarizeFromImage(rawBase64)
-
-    } else {
-      return NextResponse.json({ error: 'No valid input provided' }, { status: 400 })
+      sourceType = 'text'
+      rawContent = text
     }
 
+    const config: PosterConfig = {
+      sourceUrl: url || undefined,
+      sourceType,
+      rawContent,
+      heroImageBase64: userImageBase64 || null,
+      style,
+      bulletCount,
+      customFramingPrompt,
+    }
+
+    const processed = await processSources(config)
+
+    // Resolve avatar
+    const avatarBase64 = await resolveAvatar(processed.entityName, processed.entityOrg)
+    const effectiveFlag = avatarBase64 ? processed.flagEmoji : null
+
+    // Render poster
     let posterBase64: string | null = null
     try {
       const baseUrl = getBaseUrl(request)
@@ -67,8 +63,14 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          summary,
-          imageBase64,
+          summary: {
+            headline: processed.headline,
+            bullets: processed.bullets,
+            sourceLabel: processed.sourceLabel,
+          },
+          imageBase64: processed.heroImageBase64,
+          avatarBase64,
+          flagEmoji: effectiveFlag,
         }),
       })
 
@@ -82,9 +84,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       summary: {
-        headline: summary.headline,
-        bullets: summary.bullets,
-        sourceLabel: summary.sourceLabel,
+        headline: processed.headline,
+        bullets: processed.bullets,
+        sourceLabel: processed.sourceLabel,
+        entityName: processed.entityName,
+        entityOrg: processed.entityOrg,
+        flagEmoji: processed.flagEmoji,
       },
       posterBase64,
     })
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
     console.error('[HsnYojz Generate] Error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Generation failed' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

@@ -198,3 +198,64 @@ CREATE POLICY "Allow all hsnyojz_prompt operations"
     ON hsnyojz_prompt FOR ALL
     USING (true)
     WITH CHECK (true);
+
+-- =============================================
+-- HsnYojz - Poster Drafts (Interactive Editing Sessions)
+-- =============================================
+
+CREATE TABLE poster_drafts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'hassan',
+    status TEXT NOT NULL DEFAULT 'draft', -- draft, approved, published
+
+    -- Source
+    source_url TEXT,
+    source_type TEXT NOT NULL DEFAULT 'link', -- link, text, image, screenshot
+    raw_content TEXT,
+
+    -- Summary
+    summary_headline TEXT,
+    summary_bullets JSONB DEFAULT '[]'::jsonb,
+    summary_source_label TEXT,
+
+    -- Style
+    style TEXT NOT NULL DEFAULT 'default', -- default, gulf, custom
+    custom_framing_prompt TEXT,
+    bullet_count INTEGER NOT NULL DEFAULT 3,
+    custom_notes TEXT,
+
+    -- Images
+    hero_image_base64 TEXT,
+    avatar_entity_name TEXT,
+    avatar_entity_org TEXT,
+    flag_emoji TEXT,
+
+    -- Telegram session
+    telegram_chat_id TEXT,
+    telegram_preview_message_id INTEGER,
+    pending_action TEXT,
+
+    -- Timestamps
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    approved_at TIMESTAMPTZ,
+    published_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_poster_drafts_status ON poster_drafts(status);
+CREATE INDEX idx_poster_drafts_user ON poster_drafts(user_id);
+CREATE INDEX idx_poster_drafts_chat ON poster_drafts(telegram_chat_id);
+
+ALTER TABLE poster_drafts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all poster_drafts operations"
+    ON poster_drafts FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+ALTER PUBLICATION supabase_realtime ADD TABLE poster_drafts;
+
+CREATE TRIGGER update_poster_drafts_updated_at
+    BEFORE UPDATE ON poster_drafts
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

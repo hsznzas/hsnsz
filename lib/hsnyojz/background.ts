@@ -5,7 +5,7 @@ const H = 1920
 const HERO_H = 860
 
 // The white scrim fades from fully opaque at top → transparent by this y
-const WHITE_FADE_END_Y = 735
+const WHITE_FADE_END_Y = 535
 
 /**
  * Renders the CSS pattern texture as raw RGB pixels (1080x1920).
@@ -74,7 +74,15 @@ async function generateWhiteScrim(): Promise<Buffer> {
  *
  * Returns a data:image/jpeg;base64 URI ready for satori <img>.
  */
-export async function generateBackground(heroDataUri?: string | null): Promise<string> {
+export interface HeroOptions {
+  heroHeight?: number
+  blurStart?: number
+  blurEnd?: number
+  fadeStart?: number
+  fadeEnd?: number
+}
+
+export async function generateBackground(heroDataUri?: string | null, heroOpts?: HeroOptions): Promise<string> {
   const [patternPixels, scrimPng] = await Promise.all([
     Promise.resolve(generatePatternPixels()),
     generateWhiteScrim(),
@@ -90,10 +98,11 @@ export async function generateBackground(heroDataUri?: string | null): Promise<s
     return `data:image/jpeg;base64,${buf.toString('base64')}`
   }
 
+  const heroH = heroOpts?.heroHeight ?? HERO_H
   const base64 = heroDataUri.replace(/^data:image\/[^;]+;base64,/, '')
   const inputBuf = Buffer.from(base64, 'base64')
 
-  const resized = sharp(inputBuf).resize(W, HERO_H, {
+  const resized = sharp(inputBuf).resize(W, heroH, {
     fit: 'cover',
     position: 'centre',
   })
@@ -103,15 +112,15 @@ export async function generateBackground(heroDataUri?: string | null): Promise<s
     resized.clone().blur(40).removeAlpha().raw().toBuffer(),
   ])
 
-  const BLUR_START = 0.35
-  const BLUR_END = 0.80
-  const FADE_START = 0.58
-  const FADE_END = 1.0
+  const BLUR_START = heroOpts?.blurStart ?? 0.35
+  const BLUR_END = heroOpts?.blurEnd ?? 0.80
+  const FADE_START = heroOpts?.fadeStart ?? 0.58
+  const FADE_END = heroOpts?.fadeEnd ?? 1.0
 
-  const heroRGBA = Buffer.alloc(W * HERO_H * 4)
+  const heroRGBA = Buffer.alloc(W * heroH * 4)
 
-  for (let y = 0; y < HERO_H; y++) {
-    const yf = y / HERO_H
+  for (let y = 0; y < heroH; y++) {
+    const yf = y / heroH
 
     let blurT = 0
     if (yf > BLUR_START) {
@@ -134,7 +143,7 @@ export async function generateBackground(heroDataUri?: string | null): Promise<s
   }
 
   const heroPng = await sharp(heroRGBA, {
-    raw: { width: W, height: HERO_H, channels: 4 },
+    raw: { width: W, height: heroH, channels: 4 },
   }).png().toBuffer()
 
   const result = await sharp(patternPixels, {

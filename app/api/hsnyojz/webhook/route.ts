@@ -1,92 +1,308 @@
-// HsnYojz - Telegram Webhook Handler
-// Flow: Input → Scrape → Summarize → Preview for approval → Render on confirm
+// HsnYojz - Telegram Webhook Handler (Interactive Keyboard Flow)
+// Every interaction creates or updates a poster_drafts row in Supabase
 
 import { NextRequest, NextResponse } from 'next/server'
 import {
   sendMessage,
-  sendMessageWithButtons,
+  sendMessageWithKeyboard,
   sendDocument,
   answerCallbackQuery,
-  editMessageReplyMarkup,
+  editMessageText,
+  deleteMessage,
   isAdminChat,
   extractUrl,
   downloadTelegramFile,
   type TelegramUpdate,
+  type InlineKeyboardButton,
 } from '@/lib/hsnyojz/telegram'
 import { scrapeArticle } from '@/lib/hsnyojz/scraper'
-import { summarizeArticle, summarizeFromText, summarizeFromImage, type NewsSummary, type SummarizeExtras } from '@/lib/hsnyojz/summarizer'
+import {
+  summarizeArticle,
+  summarizeFromText,
+  summarizeFromImage,
+  type NewsSummary,
+  type SummarizeOptions,
+} from '@/lib/hsnyojz/summarizer'
+import { resolveAvatar } from '@/lib/hsnyojz/avatars'
+import { generateImage } from '@/lib/hsnyojz/image-gen'
+import { getSupabase } from '@/lib/supabase/client'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-// ── In-memory pending state (single-admin bot, survives while instance is warm) ──
+// ── Types ──
 
-interface PendingPoster {
-  summary: NewsSummary
-  imageBase64: string | null
-  url: string | null
-  createdAt: number
+interface DraftRow {
+  id: string
+  user_id: string
+  status: string
+  source_url: string | null
+  source_type: string
+  raw_content: string | null
+  summary_headline: string | null
+  summary_bullets: string[]
+  summary_source_label: string | null
+  style: string
+  custom_framing_prompt: string | null
+  bullet_count: number
+  custom_notes: string | null
+  hero_image_base64: string | null
+  avatar_entity_name: string | null
+  avatar_entity_org: string | null
+  flag_emoji: string | null
+  telegram_chat_id: string | null
+  telegram_preview_message_id: number | null
+  pending_action: string | null
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+  published_at: string | null
 }
 
-const pendingPosters = new Map<number, PendingPoster>()
-const awaitingEdit = new Set<number>()
+// ── Supabase Helpers ──
 
-const PENDING_TTL_MS = 30 * 60 * 1000 // 30 min
-
-function cleanStale() {
-  const now = Date.now()
-  for (const [key, val] of Array.from(pendingPosters.entries())) {
-    if (now - val.createdAt > PENDING_TTL_MS) {
-      pendingPosters.delete(key)
-      awaitingEdit.delete(key)
-    }
-  }
+async function getDraft(draftId: string): Promise<DraftRow | null> {
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { data } = await supabase
+    .from('poster_drafts')
+    .select('*')
+    .eq('id', draftId)
+    .single()
+  return data as DraftRow | null
 }
 
-function formatSummaryMessage(summary: NewsSummary): string {
-  const lines = [
-    `📰 <b>${summary.headline}</b>`,
-    '',
-    ...summary.bullets.map((b) => `← ${b}`),
+async function getDraftByChatPending(chatId: string): Promise<DraftRow | null> {
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { data } = await supabase
+    .from('poster_drafts')
+    .select('*')
+    .eq('telegram_chat_id', chatId)
+    .not('pending_action', 'is', null)
+    .eq('status', 'draft')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single()
+  return data as DraftRow | null
+}
+
+async function createDraft(fields: Partial<DraftRow>): Promise<DraftRow | null> {
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { data } = await supabase
+    .from('poster_drafts')
+    .insert(fields)
+    .select()
+    .single()
+  return data as DraftRow | null
+}
+
+async function updateDraft(draftId: string, fields: Partial<DraftRow>): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) return
+  await supabase
+    .from('poster_drafts')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', draftId)
+}
+
+// ── Keyboard Builders ──
+
+function mainKeyboard(draftId: string): InlineKeyboardButton[][] {
+  return [
+    [{ text: '✅ موافق', callback_data: `hsnyojz:approve:${draftId}` }],
+    [
+      { text: '🔢 عدد النقاط', callback_data: `hsnyojz:bullets:${draftId}` },
+      { text: '🎨 الأسلوب', callback_data: `hsnyojz:style:${draftId}` },
+    ],
+    [
+      { text: '🖼 إضافة صورة', callback_data: `hsnyojz:image:${draftId}` },
+      { text: '🏷 أفاتار + علم', callback_data: `hsnyojz:avatar:${draftId}` },
+    ],
+    [
+      { text: '📌 المصدر', callback_data: `hsnyojz:source:${draftId}` },
+      { text: '📝 ملاحظة', callback_data: `hsnyojz:note:${draftId}` },
+    ],
+    [
+      { text: '💬 توجيه خاص', callback_data: `hsnyojz:framing:${draftId}` },
+      { text: '✏️ تعديل نقطة', callback_data: `hsnyojz:edit_bullet:${draftId}` },
+    ],
+    [
+      { text: '➕ إضافة نقطة', callback_data: `hsnyojz:add_bullet:${draftId}` },
+      { text: '🔄 إعادة', callback_data: `hsnyojz:redo:${draftId}` },
+    ],
+    [{ text: '🎆 توليد صورة AI', callback_data: `hsnyojz:image_gen:${draftId}` }],
   ]
-  if (summary.sourceLabel) {
-    lines.push('', `📌 المصدر: ${summary.sourceLabel}`)
+}
+
+function bulletsSubKeyboard(draftId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '0️⃣ عنوان فقط', callback_data: `hsnyojz:setbullets:0:${draftId}` },
+      { text: '1️⃣', callback_data: `hsnyojz:setbullets:1:${draftId}` },
+      { text: '2️⃣', callback_data: `hsnyojz:setbullets:2:${draftId}` },
+      { text: '3️⃣', callback_data: `hsnyojz:setbullets:3:${draftId}` },
+      { text: '4️⃣', callback_data: `hsnyojz:setbullets:4:${draftId}` },
+      { text: '5️⃣', callback_data: `hsnyojz:setbullets:5:${draftId}` },
+    ],
+    [{ text: '↩️ رجوع', callback_data: `hsnyojz:back:${draftId}` }],
+  ]
+}
+
+function styleSubKeyboard(draftId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '📋 افتراضي', callback_data: `hsnyojz:setstyle:default:${draftId}` },
+      { text: '🗣 خليجي', callback_data: `hsnyojz:setstyle:gulf:${draftId}` },
+      { text: '💬 توجيه خاص', callback_data: `hsnyojz:setstyle:custom:${draftId}` },
+    ],
+    [{ text: '↩️ رجوع', callback_data: `hsnyojz:back:${draftId}` }],
+  ]
+}
+
+function flagSubKeyboard(draftId: string, currentFlag: string | null): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '🇺🇸', callback_data: `hsnyojz:setflag:🇺🇸:${draftId}` },
+      { text: '🇸🇦', callback_data: `hsnyojz:setflag:🇸🇦:${draftId}` },
+      { text: '🇦🇪', callback_data: `hsnyojz:setflag:🇦🇪:${draftId}` },
+      { text: '🇨🇳', callback_data: `hsnyojz:setflag:🇨🇳:${draftId}` },
+      { text: '🇬🇧', callback_data: `hsnyojz:setflag:🇬🇧:${draftId}` },
+      { text: '🇯🇵', callback_data: `hsnyojz:setflag:🇯🇵:${draftId}` },
+    ],
+    [{ text: 'بدون علم', callback_data: `hsnyojz:setflag:none:${draftId}` }],
+    [{ text: `✅ إبقاء الحالي: ${currentFlag || '—'}`, callback_data: `hsnyojz:back:${draftId}` }],
+    [{ text: '↩️ رجوع', callback_data: `hsnyojz:back:${draftId}` }],
+  ]
+}
+
+function bulletEditSubKeyboard(draftId: string, bullets: string[]): InlineKeyboardButton[][] {
+  const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣']
+  const rows: InlineKeyboardButton[][] = bullets.map((b, i) => [
+    {
+      text: `${numEmoji[i]} ${b.length > 30 ? b.slice(0, 30) + '...' : b}`,
+      callback_data: `hsnyojz:pickbullet:${i}:${draftId}`,
+    },
+  ])
+  rows.push([{ text: '↩️ رجوع', callback_data: `hsnyojz:back:${draftId}` }])
+  return rows
+}
+
+// ── Preview Message Builder ──
+
+const STYLE_NAMES: Record<string, string> = {
+  default: 'افتراضي',
+  gulf: 'خليجي',
+  custom: 'توجيه خاص',
+}
+
+function buildPreviewText(draft: DraftRow): string {
+  const bullets = draft.summary_bullets || []
+  const bulletsText = bullets.length > 0
+    ? bullets.map((b) => `— ${b}`).join('\n')
+    : '(عنوان فقط)'
+
+  const hasImage = draft.hero_image_base64 ? '✅' : '❌'
+
+  let avatarStatus = '— none'
+  if (draft.avatar_entity_name) {
+    avatarStatus = draft.avatar_entity_name
   }
+
+  const lines = [
+    `📰 <b>العنوان:</b>`,
+    draft.summary_headline || '—',
+    '',
+    `📝 <b>النقاط:</b>`,
+    bulletsText,
+    '',
+    `📌 المصدر: ${draft.summary_source_label || '—'}`,
+    `🎨 الأسلوب: ${STYLE_NAMES[draft.style] || draft.style}`,
+    `🔢 النقاط: ${draft.bullet_count}`,
+    `🖼 صورة: ${hasImage}`,
+    `🏷 أفاتار: ${avatarStatus}`,
+    `🏳️ علم: ${draft.flag_emoji || '—'}`,
+    `📝 ملاحظة: ${draft.custom_notes || '—'}`,
+  ]
+
   return lines.join('\n')
 }
 
-const APPROVAL_BUTTONS = [
-  [
-    { text: '✅ اعتمد', callback_data: 'approve' },
-    { text: '✏️ عدّل', callback_data: 'edit' },
-  ],
-]
+// ── Re-summarize Helper ──
 
-function parseExtras(text: string): { cleaned: string; extras: SummarizeExtras } {
-  const extras: SummarizeExtras = {}
-  let cleaned = text
-
-  const sourceMatch = cleaned.match(/\+source\s+(.+)/i)
-  if (sourceMatch) {
-    extras.sourceOverride = sourceMatch[1].trim()
-    cleaned = cleaned.replace(sourceMatch[0], '').trim()
+async function reSummarize(draft: DraftRow): Promise<NewsSummary> {
+  const opts: SummarizeOptions = {
+    bulletCount: draft.bullet_count,
+    style: draft.style as 'default' | 'gulf' | 'custom',
+    customFramingPrompt: draft.custom_framing_prompt || undefined,
   }
 
-  const dirMatch = cleaned.match(/\+dir\s+(.+)/i)
-  if (dirMatch) {
-    extras.direction = dirMatch[1].trim()
-    cleaned = cleaned.replace(dirMatch[0], '').trim()
+  if (draft.source_type === 'link' && draft.source_url) {
+    const article = await scrapeArticle(draft.source_url)
+    return summarizeArticle(article.title, article.content, article.siteName, undefined, opts)
+  } else if (draft.source_type === 'image' || draft.source_type === 'screenshot') {
+    if (!draft.raw_content) throw new Error('No raw content for image re-summarize')
+    const rawBase64 = draft.raw_content.replace(/^data:image\/\w+;base64,/, '')
+    return summarizeFromImage(rawBase64, undefined, opts)
+  } else {
+    if (!draft.raw_content) throw new Error('No raw content for text re-summarize')
+    return summarizeFromText(draft.raw_content, undefined, opts)
   }
-
-  return { cleaned, extras }
 }
 
-// ── Main handler ──
+// ── Render Helper ──
+
+async function renderPoster(
+  draft: DraftRow,
+  request: NextRequest,
+): Promise<Buffer> {
+  const avatarBase64 = await resolveAvatar(
+    draft.avatar_entity_name,
+    draft.avatar_entity_org,
+  )
+  const effectiveFlag = avatarBase64 ? draft.flag_emoji : null
+
+  const baseUrl = getBaseUrl(request)
+  const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      summary: {
+        headline: draft.summary_headline,
+        bullets: draft.summary_bullets || [],
+        sourceLabel: draft.summary_source_label,
+        customNotes: draft.custom_notes,
+      },
+      imageBase64: draft.hero_image_base64,
+      avatarBase64,
+      flagEmoji: effectiveFlag,
+    }),
+  })
+
+  if (!renderRes.ok) throw new Error(`Render failed: ${renderRes.status}`)
+  const arrayBuffer = await renderRes.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+// ── Update preview message in-place ──
+
+async function refreshPreview(
+  draft: DraftRow,
+  chatId: string | number,
+  messageId: number,
+  keyboard?: InlineKeyboardButton[][],
+): Promise<void> {
+  const text = buildPreviewText(draft)
+  const kb = keyboard || mainKeyboard(draft.id)
+  await editMessageText(chatId, messageId, text, kb)
+}
+
+// ── Main Handler ──
 
 export async function POST(request: NextRequest) {
   try {
     const update: TelegramUpdate = await request.json()
-    cleanStale()
 
     if (update.callback_query) {
       return handleCallback(update, request)
@@ -107,270 +323,566 @@ export async function POST(request: NextRequest) {
     const rawText = msg.text || msg.caption || ''
 
     if (rawText === '/start') {
-      awaitingEdit.delete(chatId)
-      pendingPosters.delete(chatId)
       await sendMessage(chatId, [
         '🗞 <b>حسن يوجز</b> - أداة إنشاء بوسترات الأخبار',
         '',
-        '📌 <b>طريقة الاستخدام:</b>',
-        '1️⃣ أرسل رابط خبر (مع أو بدون صورة)',
-        '2️⃣ أرسل نص خبر (مع أو بدون صورة)',
-        '3️⃣ أرسل صورة (سكرين شوت) للخبر',
-        '',
-        '📎 <b>خيارات إضافية (اختيارية):</b>',
-        '<code>+source اسم المصدر</code> — تحديد المصدر يدوياً',
-        '<code>+dir توجيه</code> — إضافة زاوية أو مقارنة',
-        '',
-        '💡 مثال:',
-        '<code>https://example.com/news</code>',
-        '<code>+source رويترز</code>',
-        '<code>+dir قارن هذا باستثمار البيتكوين قبل 5 سنوات</code>',
-        '',
-        '⚡ سيتم تلخيص الخبر ثم عرضه عليك للموافقة قبل التصميم.',
+        '📌 أرسل رابط أو نص أو صورة لبدء بوستر جديد.',
       ].join('\n'))
       return NextResponse.json({ ok: true })
     }
 
-    // ── Awaiting edited text ──
-
-    if (awaitingEdit.has(chatId)) {
-      return handleEditedText(chatId, rawText)
+    // Check for pending action
+    const pendingDraft = await getDraftByChatPending(String(chatId))
+    if (pendingDraft) {
+      return handlePendingAction(pendingDraft, msg, chatId, request)
     }
 
-    // ── New input ──
-
-    const { cleaned: textWithoutExtras, extras } = parseExtras(rawText)
-    const url = extractUrl(textWithoutExtras)
-    const hasPhoto = !!(msg.photo && msg.photo.length > 0)
-    const hasUrl = !!url
-    const cleanText = textWithoutExtras.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
-    const hasText = cleanText.length > 0
-
-    if (!hasUrl && !hasPhoto && !hasText) {
-      await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
-      return NextResponse.json({ ok: true })
-    }
-
-    awaitingEdit.delete(chatId)
-    pendingPosters.delete(chatId)
-
-    await sendMessage(chatId, '⏳ جاري القراءة والتلخيص...')
-
-    let imageBase64: string | null = null
-    if (hasPhoto) {
-      try {
-        const bestPhoto = msg.photo![msg.photo!.length - 1]
-        const photoBuffer = await downloadTelegramFile(bestPhoto.file_id)
-        imageBase64 = `data:image/jpeg;base64,${photoBuffer.toString('base64')}`
-      } catch (err) {
-        console.error('[HsnYojz] Failed to download user photo:', err)
-      }
-    }
-
-    let summary: NewsSummary
-
-    if (hasUrl) {
-      let article
-      try {
-        article = await scrapeArticle(url)
-      } catch {
-        await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
-        return NextResponse.json({ ok: true })
-      }
-
-      if (!article.content && !article.title) {
-        await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
-        return NextResponse.json({ ok: true })
-      }
-
-      try {
-        summary = await summarizeArticle(article.title, article.content, article.siteName, extras)
-      } catch {
-        await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
-        return NextResponse.json({ ok: true })
-      }
-
-      if (!imageBase64 && article.ogImage) {
-        try {
-          const imgRes = await fetch(article.ogImage, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-          })
-          if (imgRes.ok) {
-            const imgBuffer = await imgRes.arrayBuffer()
-            const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
-            imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
-          }
-        } catch (err) {
-          console.error('[HsnYojz] Failed to fetch OG image:', err)
-        }
-      }
-
-    } else if (hasText) {
-      try {
-        summary = await summarizeFromText(cleanText, extras)
-      } catch {
-        await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
-        return NextResponse.json({ ok: true })
-      }
-
-    } else if (hasPhoto) {
-      if (!imageBase64) {
-        await sendMessage(chatId, '❌ تعذر تحميل الصورة. حاول مرة أخرى.')
-        return NextResponse.json({ ok: true })
-      }
-      const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
-      try {
-        summary = await summarizeFromImage(rawBase64, extras)
-      } catch {
-        await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
-        return NextResponse.json({ ok: true })
-      }
-
-    } else {
-      await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
-      return NextResponse.json({ ok: true })
-    }
-
-    // Store pending and show for approval
-    pendingPosters.set(chatId, {
-      summary,
-      imageBase64,
-      url,
-      createdAt: Date.now(),
-    })
-
-    await sendMessageWithButtons(chatId, formatSummaryMessage(summary), APPROVAL_BUTTONS)
-
-    return NextResponse.json({ ok: true })
+    // New poster request
+    return handleNewPoster(msg, chatId, rawText, request)
   } catch (error) {
     console.error('[HsnYojz Webhook] Unhandled error:', error)
     return NextResponse.json({ ok: true })
   }
 }
 
-// ── Callback: Approve / Edit ──
+// ── Handle New Poster ──
+
+async function handleNewPoster(
+  msg: NonNullable<TelegramUpdate['message']>,
+  chatId: number,
+  rawText: string,
+  request: NextRequest,
+) {
+  const url = extractUrl(rawText)
+  const hasPhoto = !!(msg.photo && msg.photo.length > 0)
+  const hasUrl = !!url
+  const cleanText = rawText.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
+  const hasText = cleanText.length > 0
+
+  if (!hasUrl && !hasPhoto && !hasText) {
+    await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
+    return NextResponse.json({ ok: true })
+  }
+
+  await sendMessage(chatId, '⏳ جاري القراءة والتلخيص...')
+
+  let imageBase64: string | null = null
+  if (hasPhoto) {
+    try {
+      const bestPhoto = msg.photo![msg.photo!.length - 1]
+      const photoBuffer = await downloadTelegramFile(bestPhoto.file_id)
+      imageBase64 = `data:image/jpeg;base64,${photoBuffer.toString('base64')}`
+    } catch (err) {
+      console.error('[HsnYojz] Failed to download user photo:', err)
+    }
+  }
+
+  let summary: NewsSummary
+  let sourceType: string = 'text'
+  let rawContent: string | null = null
+
+  if (hasUrl) {
+    sourceType = 'link'
+    let article
+    try {
+      article = await scrapeArticle(url)
+    } catch {
+      await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!article.content && !article.title) {
+      await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
+      return NextResponse.json({ ok: true })
+    }
+
+    rawContent = article.content
+
+    try {
+      summary = await summarizeArticle(article.title, article.content, article.siteName)
+    } catch {
+      await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!imageBase64 && article.ogImage) {
+      try {
+        const imgRes = await fetch(article.ogImage, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        })
+        if (imgRes.ok) {
+          const imgBuffer = await imgRes.arrayBuffer()
+          const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
+          imageBase64 = `data:${contentType};base64,${Buffer.from(imgBuffer).toString('base64')}`
+        }
+      } catch (err) {
+        console.error('[HsnYojz] Failed to fetch OG image:', err)
+      }
+    }
+  } else if (hasText && !hasPhoto) {
+    sourceType = 'text'
+    rawContent = cleanText
+    try {
+      summary = await summarizeFromText(cleanText)
+    } catch {
+      await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
+      return NextResponse.json({ ok: true })
+    }
+  } else if (hasPhoto) {
+    sourceType = 'image'
+    rawContent = imageBase64
+    if (!imageBase64) {
+      await sendMessage(chatId, '❌ تعذر تحميل الصورة. حاول مرة أخرى.')
+      return NextResponse.json({ ok: true })
+    }
+    const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+    try {
+      summary = await summarizeFromImage(rawBase64)
+    } catch {
+      await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
+      return NextResponse.json({ ok: true })
+    }
+  } else {
+    await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
+    return NextResponse.json({ ok: true })
+  }
+
+  // Resolve avatar
+  const avatarBase64 = await resolveAvatar(summary.entityName, summary.entityOrg)
+
+  // Create draft
+  const draft = await createDraft({
+    source_url: url || null,
+    source_type: sourceType,
+    raw_content: sourceType !== 'image' ? rawContent : null,
+    summary_headline: summary.headline,
+    summary_bullets: summary.bullets as unknown as string[],
+    summary_source_label: summary.sourceLabel,
+    hero_image_base64: imageBase64,
+    avatar_entity_name: summary.entityName,
+    avatar_entity_org: summary.entityOrg,
+    flag_emoji: summary.flagEmoji,
+    telegram_chat_id: String(chatId),
+    style: 'default',
+    bullet_count: 3,
+  } as Partial<DraftRow>)
+
+  if (!draft) {
+    await sendMessage(chatId, '❌ تعذر حفظ المسودة. حاول مرة أخرى.')
+    return NextResponse.json({ ok: true })
+  }
+
+  // Send preview with main keyboard
+  const previewText = buildPreviewText(draft)
+  const msgId = await sendMessageWithKeyboard(chatId, previewText, mainKeyboard(draft.id))
+
+  // Save preview message ID
+  await updateDraft(draft.id, { telegram_preview_message_id: msgId })
+
+  return NextResponse.json({ ok: true })
+}
+
+// ── Handle Pending Action (text/photo replies) ──
+
+async function handlePendingAction(
+  draft: DraftRow,
+  msg: NonNullable<TelegramUpdate['message']>,
+  chatId: number,
+  request: NextRequest,
+) {
+  const action = draft.pending_action!
+  const text = msg.text || msg.caption || ''
+  const previewMsgId = draft.telegram_preview_message_id
+
+  if (action === 'awaiting_image') {
+    if (!msg.photo || msg.photo.length === 0) {
+      await sendMessage(chatId, '❌ أرسل صورة.')
+      return NextResponse.json({ ok: true })
+    }
+    const bestPhoto = msg.photo[msg.photo.length - 1]
+    const photoBuffer = await downloadTelegramFile(bestPhoto.file_id)
+    const imageBase64 = `data:image/jpeg;base64,${photoBuffer.toString('base64')}`
+    await updateDraft(draft.id, {
+      hero_image_base64: imageBase64,
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_source') {
+    await updateDraft(draft.id, {
+      summary_source_label: text.trim(),
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_framing') {
+    await sendMessage(chatId, '⏳ جاري إعادة الصياغة...')
+    await updateDraft(draft.id, {
+      custom_framing_prompt: text.trim(),
+      style: 'custom',
+      pending_action: null,
+    } as Partial<DraftRow>)
+
+    try {
+      const updatedDraft = { ...draft, custom_framing_prompt: text.trim(), style: 'custom' } as DraftRow
+      const summary = await reSummarize(updatedDraft)
+      await updateDraft(draft.id, {
+        summary_headline: summary.headline,
+        summary_bullets: summary.bullets as unknown as string[],
+        summary_source_label: summary.sourceLabel,
+        avatar_entity_name: summary.entityName,
+        avatar_entity_org: summary.entityOrg,
+        flag_emoji: summary.flagEmoji,
+      } as Partial<DraftRow>)
+    } catch (err) {
+      console.error('[HsnYojz] Re-summarize failed:', err)
+      await sendMessage(chatId, '⚠️ تعذرت إعادة الصياغة. تم الاحتفاظ بالنص الحالي.')
+    }
+
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_avatar_name') {
+    const avatarName = text.trim()
+    await updateDraft(draft.id, {
+      avatar_entity_name: avatarName,
+      pending_action: null,
+    } as Partial<DraftRow>)
+
+    // Show flag sub-keyboard
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) {
+      const flagKb = flagSubKeyboard(draft.id, updated.flag_emoji)
+      const previewText = buildPreviewText(updated)
+      await editMessageText(chatId, previewMsgId, previewText + '\n\n🏳️ اختر العلم:', flagKb)
+    }
+
+  } else if (action === 'awaiting_flag') {
+    const flagText = text.trim()
+    await updateDraft(draft.id, {
+      flag_emoji: flagText || null,
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_note') {
+    await updateDraft(draft.id, {
+      custom_notes: text.trim(),
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action.startsWith('awaiting_bullet_edit:')) {
+    const index = parseInt(action.split(':')[1], 10)
+    const bullets = [...(draft.summary_bullets || [])]
+    if (index >= 0 && index < bullets.length) {
+      bullets[index] = text.trim()
+    }
+    await updateDraft(draft.id, {
+      summary_bullets: bullets as unknown as string[],
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_custom_bullet') {
+    const bullets = [...(draft.summary_bullets || []), text.trim()]
+    await updateDraft(draft.id, {
+      summary_bullets: bullets as unknown as string[],
+      bullet_count: bullets.length,
+      pending_action: null,
+    } as Partial<DraftRow>)
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else if (action === 'awaiting_image_gen_prompt') {
+    await sendMessage(chatId, '⏳ جاري توليد الصورة...')
+    await updateDraft(draft.id, { pending_action: null } as Partial<DraftRow>)
+
+    try {
+      const result = await generateImage(text.trim(), draft.summary_headline || '')
+      if (result) {
+        await updateDraft(draft.id, { hero_image_base64: result } as Partial<DraftRow>)
+      } else {
+        await sendMessage(chatId, '❌ تعذر توليد الصورة. حاول وصفاً مختلفاً.')
+      }
+    } catch (err) {
+      console.error('[HsnYojz] Image gen failed:', err)
+      await sendMessage(chatId, '❌ تعذر توليد الصورة. حاول وصفاً مختلفاً.')
+    }
+
+    const updated = await getDraft(draft.id)
+    if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+
+  } else {
+    // Unknown pending action — clear it
+    await updateDraft(draft.id, { pending_action: null } as Partial<DraftRow>)
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
+// ── Handle Callback Query (Button Press) ──
 
 async function handleCallback(update: TelegramUpdate, request: NextRequest) {
   const cb = update.callback_query!
   const chatId = cb.message?.chat.id
-  const action = cb.data
+  const callbackData = cb.data || ''
 
   if (!chatId || !isAdminChat(chatId)) {
     await answerCallbackQuery(cb.id)
     return NextResponse.json({ ok: true })
   }
 
-  // Remove buttons from the message
-  if (cb.message) {
-    await editMessageReplyMarkup(chatId, cb.message.message_id)
-  }
+  await answerCallbackQuery(cb.id)
 
-  if (action === 'approve') {
-    await answerCallbackQuery(cb.id, '🎨 جاري التصميم...')
-    const pending = pendingPosters.get(chatId)
-
-    if (!pending) {
-      await sendMessage(chatId, '⚠️ انتهت صلاحية الطلب. أرسل الخبر مرة أخرى.')
-      return NextResponse.json({ ok: true })
-    }
-
-    pendingPosters.delete(chatId)
-    awaitingEdit.delete(chatId)
-
-    await sendMessage(chatId, '⏳ جاري التصميم...')
-
-    let pngBuffer: Buffer
-    try {
-      const baseUrl = getBaseUrl(request)
-      const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: pending.summary,
-          imageBase64: pending.imageBase64,
-        }),
-      })
-
-      if (!renderRes.ok) throw new Error(`Render failed: ${renderRes.status}`)
-      const arrayBuffer = await renderRes.arrayBuffer()
-      pngBuffer = Buffer.from(arrayBuffer)
-    } catch (err) {
-      console.error('[HsnYojz] Render error:', err)
-      await sendMessage(chatId, '❌ تعذر إنشاء الصورة. حاول مرة أخرى.')
-      return NextResponse.json({ ok: true })
-    }
-
-    const timestamp = new Date().toISOString().slice(0, 10)
-    const filename = `hsnyojz-${timestamp}.png`
-    const caption = `📰 ${pending.summary.headline}${pending.url ? `\n\n🔗 ${pending.url}` : ''}`
-
-    await sendDocument(chatId, pngBuffer, filename, caption)
-
-  } else if (action === 'edit') {
-    await answerCallbackQuery(cb.id)
-    awaitingEdit.add(chatId)
-
-    const pending = pendingPosters.get(chatId)
-    if (!pending) {
-      await sendMessage(chatId, '⚠️ انتهت صلاحية الطلب. أرسل الخبر مرة أخرى.')
-      return NextResponse.json({ ok: true })
-    }
-
-    const currentText = [
-      pending.summary.headline,
-      ...pending.summary.bullets,
-    ].join('\n')
-
-    await sendMessage(chatId, [
-      '✏️ <b>عدّل النص وأرسله:</b>',
-      '',
-      'السطر الأول = العنوان',
-      'باقي الأسطر = النقاط',
-      '',
-      '<code>' + currentText + '</code>',
-    ].join('\n'))
-
-  } else {
-    await answerCallbackQuery(cb.id)
-  }
-
-  return NextResponse.json({ ok: true })
-}
-
-// ── Handle user's edited text ──
-
-async function handleEditedText(chatId: number, text: string) {
-  awaitingEdit.delete(chatId)
-
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
-
-  if (lines.length < 2) {
-    await sendMessage(chatId, '❌ أرسل سطرين على الأقل: العنوان + نقطة واحدة.')
-    awaitingEdit.add(chatId)
+  // Parse callback_data: hsnyojz:ACTION:DRAFT_ID or hsnyojz:ACTION:PARAM:DRAFT_ID
+  const parts = callbackData.split(':')
+  if (parts[0] !== 'hsnyojz' || parts.length < 3) {
     return NextResponse.json({ ok: true })
   }
 
-  const pending = pendingPosters.get(chatId)
-  const headline = lines[0]
-  const bullets = lines.slice(1, 4) // max 3 bullets
+  const action = parts[1]
+  // Draft ID is always the last part
+  const draftId = parts[parts.length - 1]
+  // Param (if any) is between action and draftId
+  const param = parts.length === 4 ? parts[2] : undefined
 
-  const updatedSummary: NewsSummary = {
-    headline,
-    bullets,
-    sourceLabel: pending?.summary.sourceLabel || '',
+  const draft = await getDraft(draftId)
+  if (!draft) {
+    await sendMessage(chatId, '⚠️ لم يتم العثور على المسودة.')
+    return NextResponse.json({ ok: true })
   }
 
-  pendingPosters.set(chatId, {
-    summary: updatedSummary,
-    imageBase64: pending?.imageBase64 ?? null,
-    url: pending?.url ?? null,
-    createdAt: Date.now(),
-  })
+  const previewMsgId = draft.telegram_preview_message_id || cb.message?.message_id
 
-  await sendMessageWithButtons(chatId, formatSummaryMessage(updatedSummary), APPROVAL_BUTTONS)
+  switch (action) {
+    case 'approve':
+      return handleApprove(draft, chatId, previewMsgId!, request)
+
+    case 'bullets':
+      if (previewMsgId) {
+        const text = buildPreviewText(draft) + '\n\n🔢 اختر عدد النقاط:'
+        await editMessageText(chatId, previewMsgId, text, bulletsSubKeyboard(draftId))
+      }
+      break
+
+    case 'setbullets': {
+      const count = parseInt(param!, 10)
+      await sendMessage(chatId, '⏳ جاري إعادة التلخيص...')
+      await updateDraft(draftId, { bullet_count: count })
+
+      try {
+        const updatedDraft = { ...draft, bullet_count: count } as DraftRow
+        const summary = await reSummarize(updatedDraft)
+        await updateDraft(draftId, {
+          summary_headline: summary.headline,
+          summary_bullets: summary.bullets as unknown as string[],
+          summary_source_label: summary.sourceLabel,
+          avatar_entity_name: summary.entityName,
+          avatar_entity_org: summary.entityOrg,
+          flag_emoji: summary.flagEmoji,
+        } as Partial<DraftRow>)
+      } catch (err) {
+        console.error('[HsnYojz] Re-summarize failed:', err)
+        await sendMessage(chatId, '⚠️ تعذرت إعادة التلخيص.')
+      }
+
+      const updated = await getDraft(draftId)
+      if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+      break
+    }
+
+    case 'style':
+      if (previewMsgId) {
+        const text = buildPreviewText(draft) + '\n\n🎨 اختر الأسلوب:'
+        await editMessageText(chatId, previewMsgId, text, styleSubKeyboard(draftId))
+      }
+      break
+
+    case 'setstyle': {
+      const style = param as string
+      if (style === 'custom') {
+        await updateDraft(draftId, { pending_action: 'awaiting_framing' } as Partial<DraftRow>)
+        await sendMessage(chatId, 'اكتب كيف تريد أن يُصاغ هذا الخبر...')
+        break
+      }
+
+      await sendMessage(chatId, '⏳ جاري إعادة الصياغة...')
+      await updateDraft(draftId, { style, custom_framing_prompt: null } as Partial<DraftRow>)
+
+      try {
+        const updatedDraft = { ...draft, style, custom_framing_prompt: null } as DraftRow
+        const summary = await reSummarize(updatedDraft)
+        await updateDraft(draftId, {
+          summary_headline: summary.headline,
+          summary_bullets: summary.bullets as unknown as string[],
+          summary_source_label: summary.sourceLabel,
+          avatar_entity_name: summary.entityName,
+          avatar_entity_org: summary.entityOrg,
+          flag_emoji: summary.flagEmoji,
+        } as Partial<DraftRow>)
+      } catch (err) {
+        console.error('[HsnYojz] Re-summarize failed:', err)
+        await sendMessage(chatId, '⚠️ تعذرت إعادة الصياغة.')
+      }
+
+      const updated = await getDraft(draftId)
+      if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+      break
+    }
+
+    case 'image':
+      await updateDraft(draftId, { pending_action: 'awaiting_image' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'أرسل الصورة...')
+      break
+
+    case 'avatar':
+      await updateDraft(draftId, { pending_action: 'awaiting_avatar_name' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب اسم الشخص أو الشركة (مثل: Elon, Tesla, Apple)...')
+      break
+
+    case 'setflag': {
+      const flagValue = param === 'none' ? null : param
+      await updateDraft(draftId, {
+        flag_emoji: flagValue ?? null,
+        pending_action: null,
+      } as Partial<DraftRow>)
+      const updated = await getDraft(draftId)
+      if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+      break
+    }
+
+    case 'source':
+      await updateDraft(draftId, { pending_action: 'awaiting_source' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب اسم المصدر...')
+      break
+
+    case 'note':
+      await updateDraft(draftId, { pending_action: 'awaiting_note' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب ملاحظتك...')
+      break
+
+    case 'framing':
+      await updateDraft(draftId, { pending_action: 'awaiting_framing' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب كيف تريد أن يُصاغ هذا الخبر في سطر واحد...')
+      break
+
+    case 'edit_bullet': {
+      const bullets = draft.summary_bullets || []
+      if (bullets.length === 0) {
+        await answerCallbackQuery(cb.id, '⚠️ لا توجد نقاط للتعديل')
+        break
+      }
+      if (previewMsgId) {
+        const text = buildPreviewText(draft) + '\n\n✏️ اختر النقطة للتعديل:'
+        await editMessageText(chatId, previewMsgId, text, bulletEditSubKeyboard(draftId, bullets))
+      }
+      break
+    }
+
+    case 'pickbullet': {
+      const index = parseInt(param!, 10)
+      await updateDraft(draftId, {
+        pending_action: `awaiting_bullet_edit:${index}`,
+      } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب النقطة الجديدة...')
+      break
+    }
+
+    case 'add_bullet': {
+      const bullets = draft.summary_bullets || []
+      if (bullets.length >= 5) {
+        await sendMessage(chatId, '⚠️ الحد الأقصى 5 نقاط')
+        break
+      }
+      await updateDraft(draftId, { pending_action: 'awaiting_custom_bullet' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب النقطة الجديدة...')
+      break
+    }
+
+    case 'redo': {
+      await sendMessage(chatId, '⏳ جاري إعادة التلخيص...')
+      try {
+        const summary = await reSummarize(draft)
+        await updateDraft(draftId, {
+          summary_headline: summary.headline,
+          summary_bullets: summary.bullets as unknown as string[],
+          summary_source_label: summary.sourceLabel,
+          avatar_entity_name: summary.entityName,
+          avatar_entity_org: summary.entityOrg,
+          flag_emoji: summary.flagEmoji,
+        } as Partial<DraftRow>)
+      } catch (err) {
+        console.error('[HsnYojz] Redo re-summarize failed:', err)
+        await sendMessage(chatId, '⚠️ تعذرت إعادة التلخيص.')
+      }
+
+      const updated = await getDraft(draftId)
+      if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+      break
+    }
+
+    case 'image_gen':
+      await updateDraft(draftId, { pending_action: 'awaiting_image_gen_prompt' } as Partial<DraftRow>)
+      await sendMessage(chatId, 'اكتب وصف الصورة المطلوبة...')
+      break
+
+    case 'back':
+      if (previewMsgId) await refreshPreview(draft, chatId, previewMsgId)
+      break
+
+    default:
+      break
+  }
 
   return NextResponse.json({ ok: true })
 }
+
+// ── Approve → Render + Send Document ──
+
+async function handleApprove(
+  draft: DraftRow,
+  chatId: number,
+  previewMsgId: number,
+  request: NextRequest,
+) {
+  await sendMessage(chatId, '⏳ جاري التصميم...')
+
+  let pngBuffer: Buffer
+  try {
+    pngBuffer = await renderPoster(draft, request)
+  } catch (err) {
+    console.error('[HsnYojz] Render error:', err)
+    await sendMessage(chatId, '❌ تعذر إنشاء الصورة. حاول مرة أخرى.')
+    return NextResponse.json({ ok: true })
+  }
+
+  const timestamp = new Date().toISOString().slice(0, 10)
+  const filename = `hsnyojz-${timestamp}.png`
+
+  await sendDocument(chatId, pngBuffer, filename)
+
+  await updateDraft(draft.id, {
+    status: 'approved',
+    approved_at: new Date().toISOString(),
+  } as Partial<DraftRow>)
+
+  // Edit preview to done message
+  try {
+    await editMessageText(chatId, previewMsgId, '✅ تم إنشاء البوستر')
+  } catch {
+    // Ignore if edit fails (message too old, etc.)
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
+// ── Utilities ──
 
 export async function GET() {
   return NextResponse.json({ status: 'HsnYojz webhook is active' })
