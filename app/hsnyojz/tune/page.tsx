@@ -357,6 +357,16 @@ export default function TunePage() {
   dateShadowY: ${params.dateShadowY},
   dateShadowBlur: ${params.dateShadowBlur},
   dateShadowOpacity: ${params.dateShadowOpacity},
+
+  headlineColor: '${headlineColor}',
+  bulletColor: '${bulletColor}',
+  sourceTagColor: '${sourceTagColor}',
+  dateColor: '${dateColor}',
+  dateOpacity: ${dateOpacity},
+  headlineShadowColor: '${headlineShadowColor}',
+  bulletShadowColor: '${bulletShadowColor}',
+  sourceShadowColor: '${sourceShadowColor}',
+  dateShadowColor: '${dateShadowColor}',
 }`
 
   const handleCopy = () => {
