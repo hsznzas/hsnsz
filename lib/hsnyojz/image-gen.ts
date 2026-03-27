@@ -40,6 +40,8 @@ export async function generateImage(userPrompt: string, newsContext: string): Pr
   }
 }
 
+export default generateImage
+
 async function generateImageFallback(prompt: string): Promise<string | null> {
   try {
     const response = await fetch(
