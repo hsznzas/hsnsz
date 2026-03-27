@@ -1,5 +1,5 @@
 // HsnYojz - Satori + Resvg Poster Renderer (Masthead Editorial Design)
-// POST: receives { summary, imageBase64, avatarBase64, flagEmoji }, returns 1080x1920 PNG
+// POST: receives { summary, imageBase64, avatarBase64 }, returns 1080x1920 PNG
 
 import { NextRequest, NextResponse } from 'next/server'
 import satori from 'satori'
@@ -74,10 +74,6 @@ const DEFAULTS = {
   avatarBorderRadius: 67,
   avatarGap: 25,
   avatarOffsetY: 66,
-  flagSize: 32,
-  flagOffsetBottom: -20,
-  flagOffsetHorizontal: 0,
-  flagEmojiSize: 28,
   dateTop: 126,
   dateLeft: 97,
   dateFontSize: 44,
@@ -127,18 +123,14 @@ function buildTextShadow(x: number, y: number, blur: number, color: string, opac
   return `${x}px ${y}px ${blur}px rgba(${r},${g},${b},${opacity / 100})`
 }
 
-// ── Avatar + Flag Builder ──
+// ── Avatar Builder ──
 
 interface AvatarParams {
   size: number
   borderRadius: number
-  flagSize: number
-  flagOffsetBottom: number
-  flagOffsetHorizontal: number
-  flagEmojiSize: number
 }
 
-function buildAvatarBlock(avatarBase64: string, flagEmoji: string | null, ap: AvatarParams): SatoriNode {
+function buildAvatarBlock(avatarBase64: string, ap: AvatarParams): SatoriNode {
   const avatarImage = el('img', {
     src: avatarBase64,
     style: {
@@ -148,35 +140,6 @@ function buildAvatarBlock(avatarBase64: string, flagEmoji: string | null, ap: Av
       borderRadius: ap.borderRadius,
     },
   })
-
-  // Flag centered horizontally at bottom border, with adjustable offsets
-  const flagLeft = Math.round((ap.size - ap.flagSize) / 2) + ap.flagOffsetHorizontal
-
-  const flagOverlay = flagEmoji
-    ? el(
-        'div',
-        {
-          style: {
-            display: 'flex',
-            width: ap.flagSize,
-            height: ap.flagSize,
-            borderRadius: '50%',
-            background: 'white',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'absolute',
-            bottom: ap.flagOffsetBottom,
-            left: flagLeft,
-          },
-        },
-        el('span', {
-          style: {
-            display: 'flex',
-            fontSize: ap.flagEmojiSize,
-          },
-        }, flagEmoji),
-      )
-    : null
 
   return el(
     'div',
@@ -189,11 +152,10 @@ function buildAvatarBlock(avatarBase64: string, flagEmoji: string | null, ap: Av
         flexShrink: 0,
         borderRadius: ap.borderRadius,
         border: '2px solid rgba(0,0,0,0.08)',
-        overflow: 'visible',
+        overflow: 'hidden',
       },
     },
     avatarImage,
-    flagOverlay,
   )
 }
 
@@ -204,7 +166,6 @@ function buildPoster(
   sourceLabel?: string,
   overrides?: StyleOverrides,
   avatarBase64?: string | null,
-  flagEmoji?: string | null,
   customNotes?: string | null,
   colorOverrides?: ColorOverrides,
 ): SatoriNode {
@@ -302,6 +263,7 @@ function buildPoster(
           letterSpacing: word.isLatin ? 0.5 : s.headlineLetterSpacing,
           paddingLeft: word.isLatin ? 10 : 0,
           paddingRight: word.isLatin ? 10 : 0,
+          paddingTop: word.isLatin ? 14 : 0,
           marginLeft: s.headlineWordGap,
           textShadow: hlShadow,
         },
@@ -312,10 +274,6 @@ function buildPoster(
   const avatarParams: AvatarParams = {
     size: s.avatarSize,
     borderRadius: s.avatarBorderRadius,
-    flagSize: s.flagSize,
-    flagOffsetBottom: s.flagOffsetBottom,
-    flagOffsetHorizontal: s.flagOffsetHorizontal,
-    flagEmojiSize: s.flagEmojiSize,
   }
 
   // Explicit pixel widths — satori doesn't reliably compute flex widths in nested layouts
@@ -355,7 +313,7 @@ function buildPoster(
             marginTop: s.avatarOffsetY,
             flexShrink: 0,
           },
-        }, buildAvatarBlock(avatarBase64, flagEmoji ?? null, avatarParams)),
+        }, buildAvatarBlock(avatarBase64, avatarParams)),
       )
     : el(
         'div',
@@ -422,6 +380,7 @@ function buildPoster(
             letterSpacing: word.isLatin ? 0.3 : s.bulletLetterSpacing,
             paddingLeft: word.isLatin ? 6 : 0,
             paddingRight: word.isLatin ? 6 : 0,
+            paddingTop: word.isLatin ? 12 : 0,
             marginLeft: s.bulletWordGap,
             textShadow: blShadow,
           },
@@ -606,7 +565,7 @@ function buildPoster(
 
 export async function POST(request: NextRequest) {
   try {
-    const { summary, imageBase64, styleOverrides, avatarBase64, flagEmoji, heroOptions, colorOverrides } = await request.json()
+    const { summary, imageBase64, styleOverrides, avatarBase64, heroOptions, colorOverrides } = await request.json()
 
     if (!summary?.headline) {
       return NextResponse.json({ error: 'Missing summary data' }, { status: 400 })
@@ -626,7 +585,6 @@ export async function POST(request: NextRequest) {
       summary.sourceLabel,
       styleOverrides,
       avatarBase64 || null,
-      flagEmoji || null,
       summary.customNotes || null,
       colorOverrides || undefined,
     )

@@ -43,10 +43,6 @@ type Params = {
   avatarBorderRadius: number
   avatarGap: number
   avatarOffsetY: number
-  flagSize: number
-  flagOffsetBottom: number
-  flagOffsetHorizontal: number
-  flagEmojiSize: number
   dateTop: number
   dateLeft: number
   dateFontSize: number
@@ -88,10 +84,6 @@ const DEFAULTS: Params = {
   avatarBorderRadius: 67,
   avatarGap: 25,
   avatarOffsetY: 66,
-  flagSize: 32,
-  flagOffsetBottom: -20,
-  flagOffsetHorizontal: 0,
-  flagEmojiSize: 28,
   dateTop: 126,
   dateLeft: 97,
   dateFontSize: 44,
@@ -113,16 +105,6 @@ const DEFAULTS: Params = {
   dateShadowOpacity: 33,
 }
 
-const FLAG_OPTIONS = [
-  { emoji: '🇺🇸', label: 'أمريكا' },
-  { emoji: '🇸🇦', label: 'السعودية' },
-  { emoji: '🇦🇪', label: 'الإمارات' },
-  { emoji: '🇨🇳', label: 'الصين' },
-  { emoji: '🇬🇧', label: 'بريطانيا' },
-  { emoji: '🇯🇵', label: 'اليابان' },
-  { emoji: '🇰🇷', label: 'كوريا' },
-  { emoji: '🇩🇪', label: 'ألمانيا' },
-]
 
 // ─── Main page ───
 
@@ -152,11 +134,9 @@ export default function TunePage() {
   const [heroFadeStart, setHeroFadeStart] = useState(58)
   const [heroFadeEnd, setHeroFadeEnd] = useState(100)
 
-  // Avatar/flag state
+  // Avatar state
   const [showAvatar, setShowAvatar] = useState(true)
   const [avatarFile, setAvatarFile] = useState<string | null>(null)
-  const [showFlag, setShowFlag] = useState(false)
-  const [flagEmoji, setFlagEmoji] = useState('🇺🇸')
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   // Color state
@@ -191,10 +171,6 @@ export default function TunePage() {
     return avatarFile || DUMMY_AVATAR_BASE64
   }, [showAvatar, avatarFile])
 
-  const getEffectiveFlag = useCallback(() => {
-    if (!showAvatar || !showFlag) return null
-    return flagEmoji
-  }, [showAvatar, showFlag, flagEmoji])
 
   const renderPoster = useCallback(async (p: Params) => {
     if (abortRef.current) abortRef.current.abort()
@@ -215,7 +191,6 @@ export default function TunePage() {
           },
           styleOverrides: p,
           avatarBase64: getAvatarBase64(),
-          flagEmoji: getEffectiveFlag(),
           imageBase64: heroImage,
           heroOptions: heroImage ? {
             heroHeight,
@@ -256,7 +231,7 @@ export default function TunePage() {
     } finally {
       setLoading(false)
     }
-  }, [getAvatarBase64, getEffectiveFlag, customNotes, heroImage, heroHeight, heroBlurStart, heroBlurEnd, heroFadeStart, heroFadeEnd, headlineColor, bulletColor, sourceTagColor, dateColor, dateOpacity, headlineShadowColor, bulletShadowColor, sourceShadowColor, dateShadowColor])
+  }, [getAvatarBase64, customNotes, heroImage, heroHeight, heroBlurStart, heroBlurEnd, heroFadeStart, heroFadeEnd, headlineColor, bulletColor, sourceTagColor, dateColor, dateOpacity, headlineShadowColor, bulletShadowColor, sourceShadowColor, dateShadowColor])
 
   useEffect(() => {
     renderPoster(params)
@@ -286,7 +261,7 @@ export default function TunePage() {
     [renderPoster],
   )
 
-  // Re-render when avatar/flag/notes toggles change
+  // Re-render when avatar/notes toggles change
   const triggerRender = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => renderPoster(params), 300)
@@ -334,10 +309,6 @@ export default function TunePage() {
   avatarBorderRadius: ${params.avatarBorderRadius},
   avatarGap: ${params.avatarGap},
   avatarOffsetY: ${params.avatarOffsetY},
-  flagSize: ${params.flagSize},
-  flagOffsetBottom: ${params.flagOffsetBottom},
-  flagOffsetHorizontal: ${params.flagOffsetHorizontal},
-  flagEmojiSize: ${params.flagEmojiSize},
   dateTop: ${params.dateTop},
   dateLeft: ${params.dateLeft},
   dateFontSize: ${params.dateFontSize},
@@ -477,7 +448,7 @@ export default function TunePage() {
             <div>
               <h1 className="text-2xl font-bold">Poster Tuner</h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Adjust spacing, avatar, and flag — see the poster update live.
+                Adjust spacing and avatar — see the poster update live.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -582,10 +553,10 @@ export default function TunePage() {
               />
             </fieldset>
 
-            {/* ─── Avatar & Flag Section ─── */}
+            {/* ─── Avatar Section ─── */}
             <fieldset className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-4">
               <legend className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide px-1">
-                Avatar &amp; Flag
+                Avatar
               </legend>
 
               {/* Avatar toggle */}
@@ -641,52 +612,6 @@ export default function TunePage() {
                   <SliderRow label="Gap from Headline" value={params.avatarGap} min={0} max={200} unit="px" onChange={(v) => update({ avatarGap: v })} />
                   <SliderRow label="Vertical Offset" value={params.avatarOffsetY} min={-300} max={300} unit="px" onChange={(v) => update({ avatarOffsetY: v })} />
 
-                  {/* Flag toggle */}
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm text-slate-700 dark:text-slate-300">Show Flag</span>
-                      <button
-                        onClick={() => {
-                          setShowFlag((v) => !v)
-                          setTimeout(() => triggerRender(), 50)
-                        }}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${showFlag ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-                      >
-                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${showFlag ? 'left-[22px]' : 'left-0.5'}`} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {showFlag && (
-                    <>
-                      {/* Flag picker */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {FLAG_OPTIONS.map((f) => (
-                          <button
-                            key={f.emoji}
-                            onClick={() => {
-                              setFlagEmoji(f.emoji)
-                              setTimeout(() => triggerRender(), 50)
-                            }}
-                            title={f.label}
-                            className={`w-10 h-10 rounded-lg text-xl flex items-center justify-center transition-all ${
-                              flagEmoji === f.emoji
-                                ? 'bg-emerald-100 dark:bg-emerald-900/40 ring-2 ring-emerald-500 scale-110'
-                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                            }`}
-                          >
-                            {f.emoji}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Flag sliders */}
-                      <SliderRow label="Flag Size" value={params.flagSize} min={16} max={120} unit="px" onChange={(v) => update({ flagSize: v })} />
-                      <SliderRow label="Flag Bottom Offset" value={params.flagOffsetBottom} min={-60} max={60} unit="px" onChange={(v) => update({ flagOffsetBottom: v })} />
-                      <SliderRow label="Flag Horizontal Offset" value={params.flagOffsetHorizontal} min={-60} max={60} unit="px" onChange={(v) => update({ flagOffsetHorizontal: v })} />
-                      <SliderRow label="Flag Emoji Size" value={params.flagEmojiSize} min={8} max={80} unit="px" onChange={(v) => update({ flagEmojiSize: v })} />
-                    </>
-                  )}
                 </>
               )}
             </fieldset>
