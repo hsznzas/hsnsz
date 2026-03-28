@@ -9,11 +9,21 @@ export interface HeadlineFontConfig extends FontStyleConfig {
   letterSpacing: number
 }
 
+export type PatternType = 'none' | 'dots' | 'waves' | 'topography' | 'cross-dots'
+
+export interface PatternConfig {
+  type: PatternType
+  color: string
+  opacity: number
+  scale: number
+}
+
 export interface PosterDesignConfig {
   aspectRatio: '9:16' | '4:5'
   canvasWidth: number
   canvasHeight: number
   backgroundColor: string
+  pattern: PatternConfig
 
   hero: {
     heightPercent: number
@@ -159,6 +169,12 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
   canvasWidth: 1080,
   canvasHeight: 1920,
   backgroundColor: '#fafafa',
+  pattern: {
+    type: 'dots',
+    color: '#d0d0d0',
+    opacity: 0.3,
+    scale: 1,
+  },
 
   hero: {
     heightPercent: 39,

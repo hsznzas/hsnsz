@@ -6,7 +6,7 @@ import {
   DEFAULT_POSTER_CONFIG,
   DEFAULT_POSTER_CONFIG_4x5,
 } from '@/lib/hsnyojz/poster-config'
-import { splitByLanguage } from '@/lib/hsnyojz/font-detect'
+import { PosterCanvas } from '@/lib/hsnyojz/poster-view'
 import { getSupabase } from '@/lib/supabase/client'
 
 // ── Constants ──
@@ -44,15 +44,6 @@ function loadDefaultSample(): SampleData {
 
 // ── Helpers ──
 
-function getFormattedDate(): string {
-  const m = [
-    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-  ]
-  const now = new Date()
-  return `${now.getDate()} ${m[now.getMonth()]} ${now.getFullYear()}`
-}
-
 function updateNested(
   obj: PosterDesignConfig,
   path: string,
@@ -66,29 +57,6 @@ function updateNested(
   }
   current[keys[keys.length - 1]] = value
   return result as unknown as PosterDesignConfig
-}
-
-// ── Mixed Text Renderer (browser preview) ──
-
-function MixedText({
-  text,
-  arabicStyle,
-  englishStyle,
-}: {
-  text: string
-  arabicStyle: React.CSSProperties
-  englishStyle: React.CSSProperties
-}) {
-  const segments = splitByLanguage(text)
-  return (
-    <>
-      {segments.map((seg, i) => (
-        <span key={i} style={seg.lang === 'arabic' ? arabicStyle : englishStyle}>
-          {seg.text}
-        </span>
-      ))}
-    </>
-  )
 }
 
 // ── Reusable Controls ──
@@ -290,6 +258,7 @@ function Section({
   )
 }
 
+
 // ── Poster Preview ──
 
 function PosterPreview({
@@ -308,21 +277,9 @@ function PosterPreview({
   sampleData: SampleData
 }) {
   const scale = containerWidth / config.canvasWidth
-  const heroHeight = Math.round(
-    (config.hero.heightPercent / 100) * config.canvasHeight,
-  )
-  const contentTop = heroHeight - config.content.overlapHeroPx
-
   const flagUrl = testFlagCode
     ? `https://flagcdn.com/256x192/${testFlagCode}.png`
     : null
-
-  const hlAr = config.headline.arabic
-  const hlEn = config.headline.english
-  const blAr = config.bullets.arabic
-  const blEn = config.bullets.english
-
-  const p = config.hero.plain
 
   return (
     <div
@@ -341,420 +298,16 @@ function PosterPreview({
           transformOrigin: 'top left',
           backgroundColor: config.backgroundColor,
           position: 'relative',
-          fontFamily: "'Manal', 'Source Serif 4', serif",
         }}
       >
-        {/* Dot-grid pattern background layer */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: '#ececec',
-            backgroundImage:
-              'repeating-radial-gradient(circle at 0 0, transparent 0, #ececec 19px), repeating-linear-gradient(#d0d0d055, #d0d0d0)',
-            opacity: 0.3,
-          }}
+        <PosterCanvas
+          config={config}
+          data={sampleData}
+          imageBase64={testImage}
+          avatarBase64={testAvatar}
+          flagImageSrc={flagUrl}
+          showDimensionsBadge
         />
-        {/* Hero Zone */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: config.canvasWidth,
-            height: heroHeight,
-            overflow: 'hidden',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
-          {testImage && config.hero.style === 'glass-refraction' && (
-            <>
-              <div
-                style={{
-                  width: config.hero.glass.outerCircleSizePx,
-                  height: config.hero.glass.outerCircleSizePx,
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  position: 'relative',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                }}
-              >
-                <img
-                  src={testImage}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    filter: `blur(${config.hero.glass.blurAmount}px)`,
-                    transform: 'scale(1.1)',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: config.backgroundColor,
-                    opacity: 1 - config.hero.glass.opacity,
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  position: 'absolute',
-                  width: config.hero.glass.innerCircleSizePx,
-                  height: config.hero.glass.innerCircleSizePx,
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  border: '3px solid rgba(255,255,255,0.3)',
-                }}
-              >
-                <img
-                  src={testImage}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              </div>
-            </>
-          )}
-          {testImage && config.hero.style === 'plain' && (
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: -p.shadowOffsetY,
-                  left: '10%',
-                  width: '80%',
-                  height: 40,
-                  borderRadius: '50%',
-                  backgroundColor: `rgba(0,0,0,${p.shadowIntensity})`,
-                  filter: `blur(${p.shadowBlur}px)`,
-                }}
-              />
-              <img
-                src={testImage}
-                alt=""
-                style={{
-                  width: `${p.imageWidthPercent}%`,
-                  height: `${p.imageHeightPercent}%`,
-                  objectFit: 'cover',
-                  borderRadius: p.borderRadius,
-                }}
-              />
-            </div>
-          )}
-          {!testImage && (
-            <div style={{ width: '100%', height: '100%', background: config.hero.placeholderColor }} />
-          )}
-          {config.hero.gradientHeightPercent > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                width: '100%',
-                height: `${config.hero.gradientHeightPercent}%`,
-                background: `linear-gradient(to bottom, transparent, ${config.hero.gradientColor})`,
-              }}
-            />
-          )}
-        </div>
-
-        {/* Content Zone */}
-        <div
-          dir="rtl"
-          style={{
-            position: 'absolute',
-            top: contentTop,
-            left: config.content.paddingX,
-            right: config.content.paddingX,
-            bottom: 0,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {/* Source tag + Date row — independent of avatar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              marginBottom: config.sourceTag.marginBottom,
-            }}
-          >
-                {sampleData.sourceLabel && (
-              <span
-                style={{
-                  background: config.sourceTag.backgroundColor,
-                  padding: `${config.sourceTag.paddingY}px ${config.sourceTag.paddingX}px`,
-                  fontSize: config.sourceTag.fontSize,
-                  fontWeight: config.sourceTag.fontWeight,
-                  color: config.sourceTag.color,
-                  fontFamily: "'Source Serif 4', serif",
-                  letterSpacing: 1,
-                }}
-              >
-                    {sampleData.sourceLabel.toUpperCase()}
-              </span>
-            )}
-            <div
-              style={{
-                flex: 1,
-                height: 1,
-                background: config.sourceTag.lineColor,
-              }}
-            />
-            <span
-              style={{
-                fontSize: config.date.fontSize,
-                color: config.date.color,
-                opacity: config.date.opacity,
-                fontFamily: "'Manal', sans-serif",
-                letterSpacing: 1,
-                direction: 'ltr',
-                unicodeBidi: 'embed',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {getFormattedDate()}
-            </span>
-          </div>
-
-          {/* Headline text — independent of avatar, full width */}
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'baseline',
-              width: '100%',
-              lineHeight: hlAr.lineHeight,
-            }}
-          >
-            <MixedText
-                  text={sampleData.headline}
-              arabicStyle={{
-                fontFamily: "'Manal', sans-serif",
-                fontSize: hlAr.fontSize,
-                fontWeight: hlAr.fontWeight,
-                lineHeight: hlAr.lineHeight,
-                letterSpacing: hlAr.letterSpacing,
-                color: hlAr.color,
-              }}
-              englishStyle={{
-                fontFamily: "'Source Serif 4', serif",
-                fontSize: hlEn.fontSize,
-                fontWeight: hlEn.fontWeight,
-                lineHeight: hlEn.lineHeight,
-                letterSpacing: hlEn.letterSpacing,
-                color: hlEn.color,
-                paddingLeft: 10,
-                paddingRight: 10,
-                paddingTop: 14,
-              }}
-            />
-          </div>
-
-          {/* Avatar — absolutely positioned, independent */}
-          {testAvatar && (
-            <div
-              style={{
-                position: 'absolute',
-                right: config.avatar.positionX,
-                top: config.avatar.positionY,
-                zIndex: 10,
-              }}
-            >
-              <div style={{ position: 'relative' }}>
-                <div
-                  style={{
-                    width: config.avatar.sizePx,
-                    height: config.avatar.sizePx,
-                    borderRadius: config.avatar.borderRadius,
-                    border: `${config.avatar.borderWidth}px solid ${config.avatar.borderColor}`,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <img
-                    src={testAvatar}
-                    alt=""
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                </div>
-                {flagUrl && (
-                  <img
-                    src={flagUrl}
-                    alt=""
-                    style={{
-                      position: 'absolute',
-                      bottom: config.flag.offsetY,
-                      right: config.flag.offsetX,
-                      width: config.flag.sizePx,
-                      height: Math.round(config.flag.sizePx * 0.75),
-                      objectFit: 'contain',
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Bullets anchored at fixed Y */}
-          {sampleData.bullets.length > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: config.bullets.anchorY,
-                left: config.bullets.positionX,
-                right: -config.bullets.positionX,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: config.bullets.gap,
-                borderRight:
-                  config.bullets.borderLineWidth > 0
-                    ? `${config.bullets.borderLineWidth}px solid ${config.bullets.borderLineColor}`
-                    : undefined,
-                paddingRight:
-                  config.bullets.borderLineWidth > 0
-                    ? config.bullets.paddingRight
-                    : 0,
-              }}
-            >
-              {sampleData.bullets.map((bullet, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: config.bullets.iconSize,
-                      minWidth: config.bullets.iconSize,
-                      display: 'flex',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: config.bullets.iconSize,
-                        color: config.bullets.iconColor,
-                        lineHeight: blAr.lineHeight,
-                        fontFamily: "'Manal', sans-serif",
-                        marginLeft: config.bullets.iconOffsetX,
-                        marginTop: config.bullets.iconOffsetY,
-                      }}
-                    >
-                      {config.bullets.iconSymbol}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      alignItems: 'baseline',
-                    }}
-                  >
-                    <MixedText
-                      text={bullet}
-                      arabicStyle={{
-                        fontFamily: "'Manal', sans-serif",
-                        fontSize: blAr.fontSize,
-                        fontWeight: blAr.fontWeight,
-                        lineHeight: blAr.lineHeight,
-                        color: blAr.color,
-                      }}
-                      englishStyle={{
-                        fontFamily: "'Source Serif 4', serif",
-                        fontSize: blEn.fontSize,
-                        fontWeight: blEn.fontWeight,
-                        lineHeight: blEn.lineHeight,
-                        color: blEn.color,
-                        paddingLeft: 6,
-                        paddingRight: 6,
-                        paddingTop: 8,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Brand footer */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              paddingTop: config.brand.paddingTop,
-              paddingBottom: config.brand.paddingBottom,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-            }}
-          >
-            {config.brand.showBrandText && (
-              <span
-                style={{
-                  fontSize: config.brand.fontSize,
-                  fontWeight: config.brand.fontWeight,
-                  color: config.brand.color,
-                  opacity: config.brand.opacity,
-                  letterSpacing: config.brand.letterSpacing,
-                  fontFamily: "'Rawasi Arabic', 'Manal', sans-serif",
-                }}
-              >
-                {config.brand.text}
-              </span>
-            )}
-            {config.brand.showHandle && (
-              <span
-                style={{
-                  fontSize: config.brand.handleFontSize,
-                  color: config.brand.handleColor,
-                  opacity: config.brand.handleOpacity,
-                  fontFamily: "'Source Serif 4', serif",
-                  marginTop: 4,
-                }}
-              >
-                {config.brand.handle}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Dimensions badge */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            left: 8,
-            fontSize: 14,
-            color: 'rgba(0,0,0,0.2)',
-            fontFamily: 'monospace',
-          }}
-        >
-          {config.canvasWidth} × {config.canvasHeight}
-        </div>
       </div>
     </div>
   )
@@ -1105,6 +658,44 @@ export default function PosterEditorPage() {
                   value={config.backgroundColor}
                   onChange={(v) => update('backgroundColor', v)}
                 />
+                <hr className="border-slate-100" />
+                <Toggle
+                  label="Pattern"
+                  options={[
+                    { value: 'none', label: 'None' },
+                    { value: 'dots', label: 'Dots' },
+                    { value: 'waves', label: 'Waves' },
+                    { value: 'topography', label: 'Topo' },
+                    { value: 'cross-dots', label: 'Cross' },
+                  ]}
+                  value={config.pattern?.type ?? 'dots'}
+                  onChange={(v) => update('pattern.type', v)}
+                />
+                {(config.pattern?.type ?? 'dots') !== 'none' && (
+                  <>
+                    <ColorInput
+                      label="Pattern Color"
+                      value={config.pattern?.color ?? '#d0d0d0'}
+                      onChange={(v) => update('pattern.color', v)}
+                    />
+                    <Slider
+                      label="Pattern Opacity"
+                      value={config.pattern?.opacity ?? 0.3}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onChange={(v) => update('pattern.opacity', v)}
+                    />
+                    <Slider
+                      label="Pattern Scale"
+                      value={config.pattern?.scale ?? 1}
+                      min={0.3}
+                      max={5}
+                      step={0.1}
+                      onChange={(v) => update('pattern.scale', v)}
+                    />
+                  </>
+                )}
               </Section>
 
               <Section title="Hero Image">

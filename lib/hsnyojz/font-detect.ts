@@ -5,49 +5,24 @@ const ARABIC_CHAR =
 
 export interface TextSegment {
   text: string
-  lang: 'arabic' | 'english'
+  lang: 'arabic' | 'english' | 'neutral'
 }
 
 /**
- * Split mixed Arabic/English text into contiguous language segments.
- * Spaces and punctuation inherit the language of the surrounding text.
+ * Split mixed Arabic/English text into renderable tokens.
+ * Words stay isolated so mixed-language wrapping can break at spaces.
  */
 export function splitByLanguage(text: string): TextSegment[] {
-  const segments: TextSegment[] = []
-  let currentLang: 'arabic' | 'english' | null = null
-  let buf = ''
-
-  for (const char of Array.from(text)) {
-    const isArabic = ARABIC_CHAR.test(char)
-    const isNeutral = /[\s.,،؛:!?؟\-()\[\]%\u2022•"'`@#$&*+=<>\/\\|~^{}٠-٩]/.test(char)
-
-    let charLang: 'arabic' | 'english'
-    if (isNeutral) {
-      charLang = currentLang || 'arabic'
-    } else if (isArabic) {
-      charLang = 'arabic'
-    } else {
-      charLang = 'english'
+  const tokens = text.match(/\s+|[^\s]+/g) || []
+  return tokens.map((token) => {
+    if (/^\s+$/.test(token)) {
+      return { text: token, lang: 'neutral' as const }
     }
-
-    if (currentLang === null) {
-      currentLang = charLang
-      buf = char
-    } else if (charLang === currentLang) {
-      buf += char
-    } else {
-      if (buf.trim()) segments.push({ text: buf, lang: currentLang })
-      else if (buf && segments.length > 0) segments[segments.length - 1].text += buf
-      currentLang = charLang
-      buf = char
+    return {
+      text: token,
+      lang: ARABIC_CHAR.test(token) ? 'arabic' as const : 'english' as const,
     }
-  }
-
-  if (buf.trim() || (buf && segments.length > 0)) {
-    segments.push({ text: buf, lang: currentLang || 'arabic' })
-  }
-
-  return segments
+  })
 }
 
 export function detectLanguage(text: string): 'arabic' | 'english' {
