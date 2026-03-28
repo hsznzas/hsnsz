@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import satori from 'satori'
 import { Resvg } from '@resvg/resvg-js'
 import { getManalFonts } from '@/lib/hsnyojz/fonts'
-import { processArabicLine, processArabicWords, type HeadlineWord } from '@/lib/hsnyojz/arabic'
+import { processArabicLine, processArabicWords } from '@/lib/hsnyojz/arabic'
 import {
   createGlassHeroImages,
   createCurvedShadow,
@@ -86,49 +86,6 @@ function calculateHeadlineShrink(
   }
 
   return minScale
-}
-
-// ── Bullet Line Layout ──
-// Pre-calculate line breaks so we never rely on Satori's flexWrap
-// (which mis-handles mixed-size RTL flex items). Estimates use
-// intentionally generous character widths so lines never overflow.
-
-const ARABIC_RANGE = /[\u0600-\u06FF\uFE70-\uFEFF\u0750-\u077F\u08A0-\u08FF]/
-
-function estimateWordPx(text: string, fontSize: number): number {
-  let w = 0
-  for (const ch of text) {
-    if (ARABIC_RANGE.test(ch)) w += fontSize * 0.62
-    else if (ch === ' ') w += fontSize * 0.28
-    else w += fontSize * 0.58
-  }
-  return w
-}
-
-function layoutBulletLines(
-  words: HeadlineWord[],
-  maxWidth: number,
-  arFontSize: number,
-  enFontSize: number,
-): HeadlineWord[][] {
-  const lines: HeadlineWord[][] = [[]]
-  let used = 0
-
-  for (const word of words) {
-    const fs = word.isLatin ? enFontSize : arFontSize
-    const spacing = 14
-    const wordPx = estimateWordPx(word.text, fs) + spacing
-
-    if (used + wordPx > maxWidth && lines[lines.length - 1].length > 0) {
-      lines.push([word])
-      used = wordPx
-    } else {
-      lines[lines.length - 1].push(word)
-      used += wordPx
-    }
-  }
-
-  return lines.filter(l => l.length > 0)
 }
 
 // ── Hero Zone Builder ──
@@ -498,17 +455,13 @@ function buildPoster(
       )
     : null
 
-  // ── Bullets (manual line layout — avoids Satori flexWrap bug) ──
+  // ── Bullets (same layout pattern as headline — icon absolutely positioned,
+  //    text uses width:'100%' + paddingRight so flexWrap has a concrete width) ──
   const blAr = cfg.bullets.arabic
   const blEn = cfg.bullets.english
-  const bulletTextWidth =
-    cfg.canvasWidth - 2 * cfg.content.paddingX - cfg.bullets.iconSize
 
   const bulletRows = bullets.map((bullet) => {
     const words = processArabicWords(bullet)
-    const lines = layoutBulletLines(
-      words, bulletTextWidth, blAr.fontSize, blEn.fontSize,
-    )
 
     const iconElement = el('span', {
       style: {
@@ -517,8 +470,6 @@ function buildPoster(
         color: cfg.bullets.iconColor,
         lineHeight: blAr.lineHeight,
         fontFamily: cfg.fonts.arabic,
-        marginLeft: cfg.bullets.iconOffsetX,
-        marginTop: cfg.bullets.iconOffsetY,
       },
     }, cfg.bullets.iconSymbol)
 
@@ -527,8 +478,7 @@ function buildPoster(
       {
         style: {
           display: 'flex',
-          flexDirection: 'row-reverse',
-          alignItems: 'flex-start',
+          position: 'relative',
           width: '100%',
         },
       },
@@ -537,8 +487,10 @@ function buildPoster(
         {
           style: {
             display: 'flex',
+            position: 'absolute',
+            right: cfg.bullets.iconOffsetX,
+            top: cfg.bullets.iconOffsetY,
             width: cfg.bullets.iconSize,
-            minWidth: cfg.bullets.iconSize,
             justifyContent: 'center',
           },
         },
@@ -549,49 +501,36 @@ function buildPoster(
         {
           style: {
             display: 'flex',
-            width: bulletTextWidth,
-            flexDirection: 'column',
-            alignItems: 'flex-end',
+            width: '100%',
+            paddingRight: cfg.bullets.iconSize + cfg.bullets.iconOffsetX,
+            flexDirection: 'row-reverse',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-start',
+            alignItems: 'baseline',
           },
         },
-        ...lines.map((line) =>
-          el(
-            'div',
+        ...words.map((word) => {
+          const isEn = word.isLatin
+          return el(
+            'span',
             {
               style: {
                 display: 'flex',
-                width: bulletTextWidth,
-                flexDirection: 'row-reverse',
-                flexWrap: 'nowrap',
-                alignItems: 'baseline',
-                overflow: 'hidden',
+                fontFamily: isEn ? cfg.fonts.english : cfg.fonts.arabic,
+                fontWeight: isEn ? blEn.fontWeight : blAr.fontWeight,
+                fontSize: isEn ? blEn.fontSize : blAr.fontSize,
+                lineHeight: isEn ? blEn.lineHeight : blAr.lineHeight,
+                color: isEn ? blEn.color : blAr.color,
+                letterSpacing: isEn ? 0.3 : 0,
+                paddingLeft: isEn ? 6 : 0,
+                paddingRight: isEn ? 6 : 0,
+                paddingTop: isEn ? 8 : 0,
+                marginLeft: 10,
               },
             },
-            ...line.map((word) => {
-              const isEn = word.isLatin
-              return el(
-                'span',
-                {
-                  style: {
-                    display: 'flex',
-                    flexShrink: 0,
-                    fontFamily: isEn ? cfg.fonts.english : cfg.fonts.arabic,
-                    fontWeight: isEn ? blEn.fontWeight : blAr.fontWeight,
-                    fontSize: isEn ? blEn.fontSize : blAr.fontSize,
-                    lineHeight: isEn ? blEn.lineHeight : blAr.lineHeight,
-                    color: isEn ? blEn.color : blAr.color,
-                    letterSpacing: isEn ? 0.3 : 0,
-                    paddingLeft: isEn ? 6 : 0,
-                    paddingRight: isEn ? 6 : 0,
-                    paddingTop: isEn ? 8 : 0,
-                    marginLeft: 10,
-                  },
-                },
-                word.text,
-              )
-            }),
-          ),
-        ),
+            word.text,
+          )
+        }),
       ),
     )
   })
@@ -849,7 +788,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [patternBase64, fonts] = await Promise.all([
-      createPatternBackground(cfg.canvasWidth, cfg.canvasHeight, cfg.pattern),
+      createPatternBackground(cfg.canvasWidth, cfg.canvasHeight),
       getManalFonts(),
     ])
 
