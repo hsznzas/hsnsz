@@ -10,7 +10,7 @@ import {
   editMessageText,
   deleteMessage,
   isAdminChat,
-  extractUrl,
+  extractUrls,
   downloadTelegramFile,
   type TelegramUpdate,
   type InlineKeyboardButton,
@@ -18,6 +18,8 @@ import {
 import { scrapeArticle } from '@/lib/hsnyojz/scraper'
 import {
   summarizeArticle,
+  type CombinedSummarySource,
+  summarizeCombinedSources,
   summarizeFromText,
   summarizeFromImage,
   type NewsSummary,
@@ -58,6 +60,17 @@ interface DraftRow {
   updated_at: string
   approved_at: string | null
   published_at: string | null
+}
+
+interface ParsedIncomingText {
+  urls: string[]
+  temporaryPromptText: string | null
+  contentText: string | null
+}
+
+interface StoredLinkSourcePayload {
+  urls: string[]
+  additionalContentText?: string | null
 }
 
 // ── Supabase Helpers ──
@@ -106,6 +119,74 @@ async function updateDraft(draftId: string, fields: Partial<DraftRow>): Promise<
     .from('poster_drafts')
     .update({ ...fields, updated_at: new Date().toISOString() })
     .eq('id', draftId)
+}
+
+const CONTENT_MARKER = 'Use the text below as a content.'
+
+function stripCommands(text: string): string {
+  return text.replace(/\/\w+/g, ' ')
+}
+
+function removeUrls(text: string): string {
+  return text.replace(/https?:\/\/[^\s]+/gi, ' ')
+}
+
+function cleanFreeText(text: string): string {
+  return stripCommands(removeUrls(text)).replace(/\s+/g, ' ').trim()
+}
+
+function parseIncomingText(rawText: string, preferPromptText: boolean): ParsedIncomingText {
+  const urls = extractUrls(rawText)
+  const markerPattern = new RegExp(CONTENT_MARKER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+  const markerMatch = rawText.match(markerPattern)
+
+  if (markerMatch && markerMatch.index !== undefined) {
+    const beforeMarker = cleanFreeText(rawText.slice(0, markerMatch.index))
+    const afterMarker = stripCommands(rawText.slice(markerMatch.index + markerMatch[0].length))
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    return {
+      urls,
+      temporaryPromptText: beforeMarker || null,
+      contentText: afterMarker || null,
+    }
+  }
+
+  const cleanedText = cleanFreeText(rawText)
+  return {
+    urls,
+    temporaryPromptText: preferPromptText ? (cleanedText || null) : null,
+    contentText: preferPromptText ? null : (cleanedText || null),
+  }
+}
+
+function serializeLinkSourcePayload(payload: StoredLinkSourcePayload): string {
+  return JSON.stringify(payload)
+}
+
+function parseStoredLinkSourcePayload(draft: DraftRow): StoredLinkSourcePayload {
+  const fallbackUrls = extractUrls(draft.source_url || '')
+
+  if (!draft.raw_content) {
+    return { urls: fallbackUrls, additionalContentText: null }
+  }
+
+  try {
+    const parsed = JSON.parse(draft.raw_content)
+    if (Array.isArray(parsed?.urls)) {
+      return {
+        urls: parsed.urls.filter((url: unknown): url is string => typeof url === 'string'),
+        additionalContentText: typeof parsed.additionalContentText === 'string'
+          ? parsed.additionalContentText
+          : null,
+      }
+    }
+  } catch {
+    // Old drafts stored plain raw content; fall back to source_url.
+  }
+
+  return { urls: fallbackUrls, additionalContentText: null }
 }
 
 // ── Keyboard Builders ──
@@ -240,8 +321,44 @@ async function reSummarize(draft: DraftRow): Promise<NewsSummary> {
   }
 
   if (draft.source_type === 'link' && draft.source_url) {
-    const article = await scrapeArticle(draft.source_url)
-    return summarizeArticle(article.title, article.content, article.siteName, undefined, opts)
+    const storedPayload = parseStoredLinkSourcePayload(draft)
+    const urls = storedPayload.urls.length > 0 ? storedPayload.urls : extractUrls(draft.source_url)
+    if (urls.length === 0) throw new Error('No source URLs for link re-summarize')
+
+    const articles = await Promise.all(urls.map((url) => scrapeArticle(url)))
+    const validArticles = articles.filter((article) => article.content || article.title)
+    if (validArticles.length === 0) {
+      throw new Error('No readable content found in stored links')
+    }
+
+    if (validArticles.length === 1) {
+      const article = validArticles[0]
+      return summarizeArticle(
+        article.title,
+        article.content,
+        article.siteName,
+        {
+          additionalContentText: storedPayload.additionalContentText || undefined,
+        },
+        opts,
+      )
+    }
+
+    const combinedSources: CombinedSummarySource[] = validArticles.map((article, index) => ({
+      label: `رابط ${index + 1}`,
+      title: article.title,
+      sourceLabel: article.siteName,
+      content: article.content || article.title,
+    }))
+
+    if (storedPayload.additionalContentText) {
+      combinedSources.push({
+        label: 'نص مضاف من المستخدم',
+        content: storedPayload.additionalContentText,
+      })
+    }
+
+    return summarizeCombinedSources(combinedSources, opts)
   } else if (draft.source_type === 'image' || draft.source_type === 'screenshot') {
     if (!draft.raw_content) throw new Error('No raw content for image re-summarize')
     const rawBase64 = draft.raw_content.replace(/^data:image\/\w+;base64,/, '')
@@ -355,11 +472,11 @@ async function handleNewPoster(
   rawText: string,
   request: NextRequest,
 ) {
-  const url = extractUrl(rawText)
   const hasPhoto = !!(msg.photo && msg.photo.length > 0)
-  const hasUrl = !!url
-  const cleanText = rawText.replace(/https?:\/\/[^\s]+/gi, '').replace(/\/\w+/g, '').trim()
-  const hasText = cleanText.length > 0
+  const parsedText = parseIncomingText(rawText, hasPhoto || extractUrls(rawText).length > 0)
+  const urls = parsedText.urls
+  const hasUrl = urls.length > 0
+  const hasText = !!parsedText.contentText
 
   if (!hasUrl && !hasPhoto && !hasText) {
     await sendMessage(chatId, '❌ أرسل رابط أو نص أو صورة للخبر')
@@ -382,34 +499,72 @@ async function handleNewPoster(
   let summary: NewsSummary
   let sourceType: string = 'text'
   let rawContent: string | null = null
+  let primarySourceUrl: string | null = null
 
   if (hasUrl) {
     sourceType = 'link'
-    let article
+    let articles
     try {
-      article = await scrapeArticle(url)
+      articles = await Promise.all(urls.map((url) => scrapeArticle(url)))
     } catch {
       await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
       return NextResponse.json({ ok: true })
     }
 
-    if (!article.content && !article.title) {
+    const validArticles = articles.filter((article) => article.content || article.title)
+    if (validArticles.length === 0) {
       await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
       return NextResponse.json({ ok: true })
     }
 
-    rawContent = article.content
+    primarySourceUrl = urls.join('\n')
+    rawContent = serializeLinkSourcePayload({
+      urls,
+      additionalContentText: parsedText.contentText,
+    })
 
     try {
-      summary = await summarizeArticle(article.title, article.content, article.siteName)
+      if (validArticles.length === 1) {
+        const article = validArticles[0]
+        summary = await summarizeArticle(
+          article.title,
+          article.content,
+          article.siteName,
+          {
+            additionalContentText: parsedText.contentText || undefined,
+          },
+          {
+            temporaryPrompt: parsedText.temporaryPromptText || undefined,
+          },
+        )
+      } else {
+        const combinedSources: CombinedSummarySource[] = validArticles.map((article, index) => ({
+          label: `رابط ${index + 1}`,
+          title: article.title,
+          sourceLabel: article.siteName,
+          content: article.content || article.title,
+        }))
+
+        if (parsedText.contentText) {
+          combinedSources.push({
+            label: 'نص مضاف من المستخدم',
+            content: parsedText.contentText,
+          })
+        }
+
+        summary = await summarizeCombinedSources(combinedSources, {
+          temporaryPrompt: parsedText.temporaryPromptText || undefined,
+        })
+      }
     } catch {
       await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
       return NextResponse.json({ ok: true })
     }
 
-    if (!imageBase64 && article.ogImage) {
+    const firstImageArticle = validArticles.find((article) => article.ogImage)
+    if (!imageBase64 && firstImageArticle?.ogImage) {
       try {
-        const imgRes = await fetch(article.ogImage, {
+        const imgRes = await fetch(firstImageArticle.ogImage, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
         })
         if (imgRes.ok) {
@@ -423,9 +578,11 @@ async function handleNewPoster(
     }
   } else if (hasText && !hasPhoto) {
     sourceType = 'text'
-    rawContent = cleanText
+    rawContent = parsedText.contentText
     try {
-      summary = await summarizeFromText(cleanText)
+      summary = await summarizeFromText(parsedText.contentText!, undefined, {
+        temporaryPrompt: parsedText.temporaryPromptText || undefined,
+      })
     } catch {
       await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
       return NextResponse.json({ ok: true })
@@ -439,7 +596,15 @@ async function handleNewPoster(
     }
     const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
     try {
-      summary = await summarizeFromImage(rawBase64)
+      summary = await summarizeFromImage(
+        rawBase64,
+        {
+          additionalContentText: parsedText.contentText || undefined,
+        },
+        {
+          temporaryPrompt: parsedText.temporaryPromptText || undefined,
+        },
+      )
     } catch {
       await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
       return NextResponse.json({ ok: true })
@@ -454,9 +619,9 @@ async function handleNewPoster(
 
   // Create draft
   const draft = await createDraft({
-    source_url: url || null,
+    source_url: primarySourceUrl,
     source_type: sourceType,
-    raw_content: sourceType !== 'image' ? rawContent : null,
+    raw_content: rawContent,
     summary_headline: summary.headline,
     summary_bullets: summary.bullets as unknown as string[],
     summary_source_label: summary.sourceLabel,

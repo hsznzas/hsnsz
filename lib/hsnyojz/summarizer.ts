@@ -14,12 +14,21 @@ export interface NewsSummary {
 export interface SummarizeExtras {
   sourceOverride?: string
   direction?: string
+  additionalContentText?: string
 }
 
 export interface SummarizeOptions {
   bulletCount?: number // 0-5, default 3
   style?: 'default' | 'gulf' | 'custom'
   customFramingPrompt?: string
+  temporaryPrompt?: string
+}
+
+export interface CombinedSummarySource {
+  label: string
+  title?: string
+  sourceLabel?: string | null
+  content: string
 }
 
 const BULLET_INSTRUCTIONS: Record<number, string> = {
@@ -82,6 +91,10 @@ function buildSystemPrompt(basePrompt: string, options?: SummarizeOptions): stri
     prompt += `\n\nتوجيه خاص من المستخدم: ${options.customFramingPrompt}`
   }
 
+  if (options?.temporaryPrompt) {
+    prompt += `\n\n═══ Prompt إضافي مؤقت من المستخدم ═══\n${options.temporaryPrompt}`
+  }
+
   // Replace the output format JSON to include new fields
   prompt = prompt.replace(
     /الشكل المطلوب \(JSON فقط\):[\s\S]*?أجب بـ JSON فقط بدون أي نص إضافي أو markdown\./,
@@ -103,6 +116,36 @@ entityName و entityOrg و flagEmoji تُستخدم لعرض أفاتار وعل
   )
 
   return prompt
+}
+
+async function callAnthropic(
+  systemPrompt: string,
+  messages: Array<{ role: 'user'; content: string | Array<Record<string, unknown>> }>,
+): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
+  }
+
+  const data = await response.json()
+  const textContent = data?.content?.[0]?.text
+  if (!textContent) throw new Error('No response from Claude API')
+  return textContent
 }
 
 export async function summarizeArticle(
@@ -127,37 +170,18 @@ export async function summarizeArticle(
 المحتوى:
 ${content.slice(0, 4000)}`
 
+  if (extras?.additionalContentText) {
+    userMessage += `\n\nنص إضافي من المستخدم باعتباره جزءاً من المحتوى:\n${extras.additionalContentText.slice(0, 2000)}`
+  }
+
   if (extras?.direction) {
     userMessage += `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}`
   }
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [
-          { role: 'user', content: userMessage },
-        ],
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
-    }
-
-    const data = await response.json()
-    const textContent = data?.content?.[0]?.text
-    if (!textContent) throw new Error('No response from Claude API')
-
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -180,35 +204,18 @@ export async function summarizeFromText(
   const systemPrompt = buildSystemPrompt(basePrompt, options)
   let userMessage = `لخّص هذا النص الإخباري:\n\n${rawText.slice(0, 4000)}`
 
+  if (extras?.additionalContentText) {
+    userMessage += `\n\nنص إضافي من المستخدم باعتباره جزءاً من المحتوى:\n${extras.additionalContentText.slice(0, 2000)}`
+  }
+
   if (extras?.direction) {
     userMessage += `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}`
   }
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
-    }
-
-    const data = await response.json()
-    const textContent = data?.content?.[0]?.text
-    if (!textContent) throw new Error('No response from Claude API')
-
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -230,55 +237,82 @@ export async function summarizeFromImage(
   const basePrompt = await getPrompt()
   const systemPrompt = buildSystemPrompt(basePrompt, options)
 
+  let imagePrompt = 'اقرأ النص في هذه الصورة ولخصه كخبر عربي. استخرج المعلومات الرئيسية وأنشئ عنواناً و نقاط ملخصة. أجب بصيغة JSON المطلوبة فقط (تشمل entityName و entityOrg و flagEmoji).'
+
+  if (extras?.additionalContentText) {
+    imagePrompt += `\n\nاستخدم أيضاً هذا النص المضاف من المستخدم باعتباره جزءاً من المحتوى:\n${extras.additionalContentText.slice(0, 2000)}`
+  }
+
+  if (extras?.direction) {
+    imagePrompt += `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}`
+  }
+
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [
+    const textContent = await callAnthropic(systemPrompt, [
+      {
+        role: 'user',
+        content: [
           {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'image/jpeg',
-                  data: imageBase64,
-                },
-              },
-              {
-                type: 'text',
-                text: 'اقرأ النص في هذه الصورة ولخصه كخبر عربي. استخرج المعلومات الرئيسية وأنشئ عنواناً و نقاط ملخصة. أجب بصيغة JSON المطلوبة فقط (تشمل entityName و entityOrg و flagEmoji).'
-                  + (extras?.direction ? `\n\nتوجيه إضافي: أضف نقطة واحدة تتناول هذا الجانب: ${extras.direction}` : ''),
-              },
-            ],
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: imagePrompt,
           },
         ],
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
-    }
-
-    const data = await response.json()
-    const textContent = data?.content?.[0]?.text
-    if (!textContent) throw new Error('No response from Claude API')
-
+      },
+    ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
     console.error('[HsnYojz summarizeFromImage] Error:', error)
+    throw error
+  }
+}
+
+export async function summarizeCombinedSources(
+  sources: CombinedSummarySource[],
+  options?: SummarizeOptions,
+): Promise<NewsSummary> {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is not configured')
+  }
+
+  if (sources.length === 0) {
+    throw new Error('No sources provided for combined summary')
+  }
+
+  const basePrompt = await getPrompt()
+  const systemPrompt = buildSystemPrompt(basePrompt, options)
+
+  const combinedSourceText = sources
+    .map((source, index) => {
+      const parts = [
+        `المصدر ${index + 1}: ${source.label}`,
+        source.title ? `العنوان: ${source.title}` : null,
+        source.sourceLabel ? `اسم المصدر: ${source.sourceLabel}` : null,
+        `المحتوى:\n${source.content.slice(0, 2500)}`,
+      ].filter(Boolean)
+
+      return parts.join('\n')
+    })
+    .join('\n\n══════\n\n')
+
+  const userMessage = `لخّص هذه المصادر المتعددة كخبر/بوست واحد مترابط. إذا كانت بينها علاقة، ادمجها بشكل ذكي في ملخص واحد. إذا كانت متقاربة لكن ليست متطابقة، استخرج القاسم المشترك أو الزاوية الأهم.\n\n${combinedSourceText}`
+
+  try {
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
+    return parseJsonResponse(textContent, options?.bulletCount)
+  } catch (error) {
+    console.error('[HsnYojz summarizeCombinedSources] Error:', error)
     throw error
   }
 }

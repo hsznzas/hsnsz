@@ -165,10 +165,15 @@ export function isAdminChat(chatId: number | string): boolean {
   return String(chatId) === ADMIN_CHAT_ID
 }
 
+const URL_REGEX = /https?:\/\/[^\s]+/gi
+
+export function extractUrls(text: string): string[] {
+  const matches = text.match(URL_REGEX) || []
+  return matches.map((url) => url.trim())
+}
+
 export function extractUrl(text: string): string | null {
-  const urlRegex = /https?:\/\/[^\s]+/i
-  const match = text.match(urlRegex)
-  return match ? match[0] : null
+  return extractUrls(text)[0] || null
 }
 
 export async function downloadTelegramFile(fileId: string): Promise<Buffer> {
