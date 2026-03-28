@@ -7,6 +7,8 @@ import {
   type SummarizeOptions,
 } from '@/lib/hsnyojz/summarizer'
 import { resolveAvatar } from '@/lib/hsnyojz/avatars'
+import { fetchFlagAsBase64 } from '@/lib/hsnyojz/flags'
+import type { PosterDesignConfig } from '@/lib/hsnyojz/poster-config'
 
 export interface PosterConfig {
   sourceUrl?: string
@@ -47,6 +49,7 @@ export interface PosterResult {
   entityName: string | null
   entityOrg: string | null
   flagEmoji: string | null
+  flagBase64: string | null
   heroImageBase64: string | null
   avatarImageBase64: string | null
   pngBuffer: Buffer
@@ -121,10 +124,11 @@ export async function processSources(config: PosterConfig): Promise<ProcessedSou
 export async function generatePoster(
   config: PosterConfig,
   renderFn: (payload: Record<string, unknown>) => Promise<Buffer>,
+  designConfig?: PosterDesignConfig,
+  aspectRatio?: '9:16' | '4:5',
 ): Promise<PosterResult> {
   const processed = await processSources(config)
 
-  // Apply manual overrides from config
   const headline = config.headline || processed.headline
   const bullets = config.bullets || processed.bullets
   const sourceLabel = config.sourceLabel || processed.sourceLabel
@@ -132,15 +136,18 @@ export async function generatePoster(
   const entityOrg = processed.entityOrg
   const flagEmoji = processed.flagEmoji
 
-  // Resolve avatar: manual override > AI entityName > AI entityOrg
   const avatarLookupName = config.avatarEntityName || entityName
   const avatarLookupOrg = entityOrg
   const avatarImageBase64 = await resolveAvatar(avatarLookupName ?? null, avatarLookupOrg ?? null)
 
-  // If no avatar found, also null out flag (per spec: no avatar section at all)
   const effectiveFlagEmoji = avatarImageBase64 ? flagEmoji : null
 
-  const renderPayload = {
+  let flagBase64: string | null = null
+  if (effectiveFlagEmoji) {
+    flagBase64 = await fetchFlagAsBase64(effectiveFlagEmoji)
+  }
+
+  const renderPayload: Record<string, unknown> = {
     summary: {
       headline,
       bullets,
@@ -149,8 +156,11 @@ export async function generatePoster(
     },
     imageBase64: processed.heroImageBase64,
     avatarBase64: avatarImageBase64,
+    flagBase64,
     flagEmoji: effectiveFlagEmoji,
   }
+  if (designConfig) renderPayload.designConfig = designConfig
+  if (aspectRatio) renderPayload.aspectRatio = aspectRatio
 
   const pngBuffer = await renderFn(renderPayload)
 
@@ -161,6 +171,7 @@ export async function generatePoster(
     entityName,
     entityOrg,
     flagEmoji: effectiveFlagEmoji,
+    flagBase64,
     heroImageBase64: processed.heroImageBase64,
     avatarImageBase64: avatarImageBase64,
     pngBuffer,
@@ -191,6 +202,11 @@ export async function generatePosterFromDraft(
 
   const effectiveFlagEmoji = avatarImageBase64 ? draft.flagEmoji : null
 
+  let flagBase64: string | null = null
+  if (effectiveFlagEmoji) {
+    flagBase64 = await fetchFlagAsBase64(effectiveFlagEmoji)
+  }
+
   const renderPayload = {
     summary: {
       headline: draft.headline,
@@ -200,6 +216,7 @@ export async function generatePosterFromDraft(
     },
     imageBase64: draft.heroImageBase64,
     avatarBase64: avatarImageBase64,
+    flagBase64,
     flagEmoji: effectiveFlagEmoji,
   }
 

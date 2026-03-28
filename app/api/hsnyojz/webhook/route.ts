@@ -26,6 +26,7 @@ import {
 import { resolveAvatar } from '@/lib/hsnyojz/avatars'
 import { generateImage } from '@/lib/hsnyojz/image-gen'
 import { getSupabase } from '@/lib/supabase/client'
+import { getActiveDesignConfig } from '@/lib/hsnyojz/active-config'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -257,10 +258,10 @@ async function renderPoster(
   draft: DraftRow,
   request: NextRequest,
 ): Promise<Buffer> {
-  const avatarBase64 = await resolveAvatar(
-    draft.avatar_entity_name,
-    draft.avatar_entity_org,
-  )
+  const [avatarBase64, designConfig] = await Promise.all([
+    resolveAvatar(draft.avatar_entity_name, draft.avatar_entity_org),
+    getActiveDesignConfig(),
+  ])
   const effectiveFlag = avatarBase64 ? draft.flag_emoji : null
 
   const baseUrl = getBaseUrl(request)
@@ -277,6 +278,7 @@ async function renderPoster(
       imageBase64: draft.hero_image_base64,
       avatarBase64,
       flagEmoji: effectiveFlag,
+      designConfig,
     }),
   })
 

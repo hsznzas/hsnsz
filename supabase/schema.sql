@@ -259,3 +259,31 @@ CREATE TRIGGER update_poster_drafts_updated_at
     BEFORE UPDATE ON poster_drafts
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- HsnYojz - Poster Design Presets
+-- =============================================
+
+CREATE TABLE poster_presets (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'hassan',
+    name TEXT NOT NULL,
+    config JSONB NOT NULL,
+    aspect_ratio TEXT NOT NULL DEFAULT '9:16',
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX idx_poster_presets_user ON poster_presets(user_id);
+
+ALTER TABLE poster_presets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all poster_presets operations"
+    ON poster_presets FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE TRIGGER update_poster_presets_updated_at
+    BEFORE UPDATE ON poster_presets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

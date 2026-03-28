@@ -92,3 +92,46 @@ export function processArabicWords(text: string): HeadlineWord[] {
 
   return segments
 }
+
+/**
+ * Process text into script runs for bullet rendering.
+ * Unlike processArabicWords which splits Arabic into individual words,
+ * this keeps consecutive Arabic words as a single contiguous run.
+ * This prevents English/number text from being forced onto a new line
+ * in Satori's flex-wrap layout (fewer, wider flex items wrap more naturally).
+ */
+export function processArabicRuns(text: string): HeadlineWord[] {
+  const rawWords = text.split(/\s+/).filter(Boolean)
+  const segments: HeadlineWord[] = []
+
+  let arabicBuffer: string[] = []
+  let latinBuffer: string[] = []
+
+  const flushArabic = () => {
+    if (arabicBuffer.length === 0) return
+    const joined = arabicBuffer.join(' ')
+    const reshaped = ArabicReshaper.convertArabic(joined)
+    segments.push({ text: applyBidiReorder(reshaped), isLatin: false })
+    arabicBuffer = []
+  }
+
+  const flushLatin = () => {
+    if (latinBuffer.length === 0) return
+    segments.push({ text: latinBuffer.join(' '), isLatin: true })
+    latinBuffer = []
+  }
+
+  for (const word of rawWords) {
+    if (isArabicWord(word)) {
+      flushLatin()
+      arabicBuffer.push(word)
+    } else {
+      flushArabic()
+      latinBuffer.push(word)
+    }
+  }
+  flushArabic()
+  flushLatin()
+
+  return segments
+}

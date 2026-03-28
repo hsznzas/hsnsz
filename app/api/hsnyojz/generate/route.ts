@@ -7,6 +7,8 @@ import {
   type PosterConfig,
 } from '@/lib/hsnyojz/engine'
 import { resolveAvatar } from '@/lib/hsnyojz/avatars'
+import { fetchFlagAsBase64 } from '@/lib/hsnyojz/flags'
+import { getActiveDesignConfig } from '@/lib/hsnyojz/active-config'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -51,14 +53,22 @@ export async function POST(request: NextRequest) {
 
     const processed = await processSources(config)
 
-    // Resolve avatar
+    // Resolve avatar + flag
     const avatarBase64 = await resolveAvatar(processed.entityName, processed.entityOrg)
     const effectiveFlag = avatarBase64 ? processed.flagEmoji : null
+
+    let flagBase64: string | null = null
+    if (effectiveFlag) {
+      flagBase64 = await fetchFlagAsBase64(effectiveFlag)
+    }
 
     // Render poster
     let posterBase64: string | null = null
     try {
-      const baseUrl = getBaseUrl(request)
+      const [designConfig, baseUrl] = await Promise.all([
+        getActiveDesignConfig(),
+        Promise.resolve(getBaseUrl(request)),
+      ])
       const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +80,9 @@ export async function POST(request: NextRequest) {
           },
           imageBase64: processed.heroImageBase64,
           avatarBase64,
+          flagBase64,
           flagEmoji: effectiveFlag,
+          designConfig,
         }),
       })
 
