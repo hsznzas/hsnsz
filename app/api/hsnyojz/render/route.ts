@@ -89,17 +89,18 @@ function calculateHeadlineShrink(
 }
 
 // ── Bullet Line Layout ──
-// Pre-calculate line breaks for bullet text so we never rely on
-// Satori's flexWrap (which mis-handles mixed-size RTL items).
+// Pre-calculate line breaks so we never rely on Satori's flexWrap
+// (which mis-handles mixed-size RTL flex items). Estimates use
+// intentionally generous character widths so lines never overflow.
 
 const ARABIC_RANGE = /[\u0600-\u06FF\uFE70-\uFEFF\u0750-\u077F\u08A0-\u08FF]/
 
 function estimateWordPx(text: string, fontSize: number): number {
   let w = 0
   for (const ch of text) {
-    if (ARABIC_RANGE.test(ch)) w += fontSize * 0.58
-    else if (ch === ' ') w += fontSize * 0.25
-    else w += fontSize * 0.55
+    if (ARABIC_RANGE.test(ch)) w += fontSize * 0.62
+    else if (ch === ' ') w += fontSize * 0.28
+    else w += fontSize * 0.58
   }
   return w
 }
@@ -112,12 +113,11 @@ function layoutBulletLines(
 ): HeadlineWord[][] {
   const lines: HeadlineWord[][] = [[]]
   let used = 0
-  const gap = 12
 
   for (const word of words) {
     const fs = word.isLatin ? enFontSize : arFontSize
-    const extra = word.isLatin ? 22 : 10
-    const wordPx = estimateWordPx(word.text, fs) + extra + gap
+    const spacing = 14
+    const wordPx = estimateWordPx(word.text, fs) + spacing
 
     if (used + wordPx > maxWidth && lines[lines.length - 1].length > 0) {
       lines.push([word])
@@ -349,7 +349,7 @@ function buildPoster(
   imageBase64: string | null,
   avatarBase64: string | null,
   flagBase64: string | null,
-  patternBase64: string,
+  patternBase64: string | null,
   shadowBase64: string | null,
 ): SatoriNode {
   const heroHeight = Math.round(
@@ -549,7 +549,7 @@ function buildPoster(
         {
           style: {
             display: 'flex',
-            flex: 1,
+            width: bulletTextWidth,
             flexDirection: 'column',
             alignItems: 'flex-end',
           },
@@ -560,8 +560,11 @@ function buildPoster(
             {
               style: {
                 display: 'flex',
+                width: bulletTextWidth,
                 flexDirection: 'row-reverse',
+                flexWrap: 'nowrap',
                 alignItems: 'baseline',
+                overflow: 'hidden',
               },
             },
             ...line.map((word) => {
@@ -571,6 +574,7 @@ function buildPoster(
                 {
                   style: {
                     display: 'flex',
+                    flexShrink: 0,
                     fontFamily: isEn ? cfg.fonts.english : cfg.fonts.arabic,
                     fontWeight: isEn ? blEn.fontWeight : blAr.fontWeight,
                     fontSize: isEn ? blEn.fontSize : blAr.fontSize,
@@ -750,17 +754,19 @@ function buildPoster(
         position: 'relative',
       },
     },
-    el('img', {
-      src: patternBase64,
-      style: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: cfg.canvasWidth,
-        height: cfg.canvasHeight,
-        objectFit: 'cover',
-      },
-    }),
+    patternBase64
+      ? el('img', {
+          src: patternBase64,
+          style: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: cfg.canvasWidth,
+            height: cfg.canvasHeight,
+            objectFit: 'cover',
+          },
+        })
+      : null,
     buildHeroZone(cfg, innerBase64, outerBase64, imageBase64, shadowBase64),
     contentZone,
   )
@@ -843,7 +849,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [patternBase64, fonts] = await Promise.all([
-      createPatternBackground(cfg.canvasWidth, cfg.canvasHeight),
+      createPatternBackground(cfg.canvasWidth, cfg.canvasHeight, cfg.pattern),
       getManalFonts(),
     ])
 
