@@ -42,6 +42,11 @@ export async function POST(request: NextRequest) {
       cfg = { ...base }
     }
 
+    console.log('[HsnYojz Render] Config source:', userConfig ? 'caller' : 'supabase',
+      '| avatar.positionY:', cfg.avatar?.positionY,
+      '| hero.positionY:', cfg.hero?.positionY,
+      '| hasUserConfig:', !!userConfig)
+
     let resolvedFlagBase64 = providedFlagBase64 || null
     if (!resolvedFlagBase64 && flagEmoji && avatarBase64) {
       try {
