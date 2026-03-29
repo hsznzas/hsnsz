@@ -8,8 +8,15 @@ export interface TextSegment {
   lang: 'arabic' | 'english' | 'neutral'
 }
 
-const INVISIBLE_BETWEEN_ARABIC =
+const INVISIBLE_CHARS =
   /[\u200B\u200C\u200D\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g
+
+// Tashkeel / harakat: Fathatan through Sukun (U+064B-U+0652).
+// Stripped because display fonts (e.g. Manal) have GSUB rules that
+// produce zero-width glyphs for Alef + Tanween Fath, making "اً"
+// disappear entirely. Stripping tashkeel is standard for Arabic
+// headline / poster typography and does not affect readability.
+const ARABIC_TASHKEEL = /[\u064B-\u0652]/g
 
 /**
  * Split mixed Arabic/English text into renderable tokens.
@@ -18,7 +25,7 @@ const INVISIBLE_BETWEEN_ARABIC =
  * keeping grouped numbers like "5,800" or "SAR 2,976" intact.
  */
 export function splitByLanguage(text: string): TextSegment[] {
-  const cleaned = text.replace(INVISIBLE_BETWEEN_ARABIC, '')
+  const cleaned = text.replace(INVISIBLE_CHARS, '').replace(ARABIC_TASHKEEL, '')
   const arabicSource = ARABIC_CHAR.source.replace(/^\[|\]$/g, '')
   const tokenRe = new RegExp(
     [
