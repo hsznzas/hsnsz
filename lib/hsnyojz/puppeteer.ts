@@ -109,28 +109,3 @@ export async function renderPageToPng(
   }
 }
 
-/**
- * Render a self-contained HTML string to PNG (fallback / legacy path).
- */
-export async function renderHtmlToPng(
-  html: string,
-  width: number,
-  height: number,
-): Promise<Buffer> {
-  const browser = await getBrowser()
-  const page = await browser.newPage()
-
-  try {
-    await page.setViewport({ width, height, deviceScaleFactor: 1 })
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    await page.evaluate(() => document.fonts.ready)
-
-    const element = await page.$('#poster')
-    if (!element) throw new Error('Poster element not found')
-
-    const screenshot = await element.screenshot({ type: 'png' })
-    return Buffer.from(screenshot)
-  } finally {
-    await page.close()
-  }
-}
