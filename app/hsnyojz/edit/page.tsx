@@ -8,6 +8,7 @@ import {
 } from '@/lib/hsnyojz/poster-config'
 import { PosterCanvas } from '@/lib/hsnyojz/poster-view'
 import { getSupabase } from '@/lib/supabase/client'
+import { toBlob } from 'html-to-image'
 
 // ── Constants ──
 
@@ -401,7 +402,7 @@ const SECTION_META: Record<string, SectionMeta> = {
     icon: 'brand',
   },
   'Content Area': {
-    description: 'Main content bounds and overlap',
+    description: 'Main content position and padding',
     accentClass: 'bg-teal-500',
     iconBgClass: 'bg-teal-100',
     iconTextClass: 'text-teal-600',
@@ -570,20 +571,17 @@ function PosterPreview({
   containerWidth,
   testImage,
   testAvatar,
-  testFlagCode,
+  flagImageSrc,
   sampleData,
 }: {
   config: PosterDesignConfig
   containerWidth: number
   testImage: string | null
   testAvatar: string | null
-  testFlagCode: string
+  flagImageSrc: string | null
   sampleData: SampleData
 }) {
   const scale = containerWidth / config.canvasWidth
-  const flagUrl = testFlagCode
-    ? `https://flagcdn.com/256x192/${testFlagCode}.png`
-    : null
 
   return (
     <div
@@ -609,7 +607,7 @@ function PosterPreview({
           data={sampleData}
           imageBase64={testImage}
           avatarBase64={testAvatar}
-          flagImageSrc={flagUrl}
+          flagImageSrc={flagImageSrc}
           showDimensionsBadge
         />
       </div>
@@ -687,6 +685,11 @@ export default function PosterEditorPage() {
   const [testUrl, setTestUrl] = useState('')
   const [linkLoading, setLinkLoading] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
+
+  const captureRef916 = useRef<HTMLDivElement>(null)
+  const captureRef4x5 = useRef<HTMLDivElement>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
+  const [flagDataUrl, setFlagDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -916,6 +919,49 @@ export default function PosterEditorPage() {
     }
   }
 
+  useEffect(() => {
+    if (!flagCode) { setFlagDataUrl(null); return }
+    let cancelled = false
+    const url = `https://flagcdn.com/256x192/${flagCode}.png`
+    fetch(url)
+      .then((r) => r.blob())
+      .then((blob) => {
+        if (cancelled) return
+        const reader = new FileReader()
+        reader.onload = () => setFlagDataUrl(reader.result as string)
+        reader.readAsDataURL(blob)
+      })
+      .catch(() => { if (!cancelled) setFlagDataUrl(null) })
+    return () => { cancelled = true }
+  }, [flagCode])
+
+  async function exportPoster(ratio: '9:16' | '4:5') {
+    const ref = ratio === '9:16' ? captureRef916 : captureRef4x5
+    if (!ref.current) return
+    setExporting(ratio)
+    try {
+      const blob = await toBlob(ref.current, {
+        pixelRatio: 1,
+        cacheBust: true,
+        skipAutoScale: true,
+      })
+      if (!blob) throw new Error('Capture returned empty')
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `poster-${ratio.replace(':', 'x')}.png`
+      link.href = url
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Export failed:', err)
+      alert('Export failed — check console for details.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
   const config4x5: PosterDesignConfig = {
     ...DEFAULT_POSTER_CONFIG_4x5,
     ...config,
@@ -1077,6 +1123,28 @@ export default function PosterEditorPage() {
                   value={config.backgroundColor}
                   onChange={(v) => update('backgroundColor', v)}
                 />
+                <BoolToggle
+                  label="Background Gradient"
+                  value={config.backgroundGradient?.enabled ?? false}
+                  onChange={(v) => update('backgroundGradient.enabled', v)}
+                />
+                {config.backgroundGradient?.enabled && (
+                  <>
+                    <ColorInput
+                      label="Gradient End"
+                      value={config.backgroundGradient?.colorEnd ?? '#e8e8e8'}
+                      onChange={(v) => update('backgroundGradient.colorEnd', v)}
+                    />
+                    <Slider
+                      label="Gradient Angle"
+                      value={config.backgroundGradient?.angle ?? 180}
+                      min={0}
+                      max={360}
+                      step={1}
+                      onChange={(v) => update('backgroundGradient.angle', v)}
+                    />
+                  </>
+                )}
                 <hr className="border-slate-100" />
                 <Toggle
                   label="Pattern"
@@ -1113,9 +1181,56 @@ export default function PosterEditorPage() {
                       step={0.1}
                       onChange={(v) => update('pattern.scale', v)}
                     />
+                    <Slider
+                      label="Stroke Width"
+                      value={config.pattern?.strokeWidth ?? 1}
+                      min={0.1}
+                      max={8}
+                      step={0.1}
+                      onChange={(v) => update('pattern.strokeWidth', v)}
+                    />
+                    <Slider
+                      label="Wavelength"
+                      value={config.pattern?.wavelength ?? 1}
+                      min={0.2}
+                      max={5}
+                      step={0.1}
+                      onChange={(v) => update('pattern.wavelength', v)}
+                    />
+                    <BoolToggle
+                      label="Pattern Gradient"
+                      value={config.pattern?.gradientEnabled ?? false}
+                      onChange={(v) => update('pattern.gradientEnabled', v)}
+                    />
+                    {config.pattern?.gradientEnabled && (
+                      <>
+                        <Toggle
+                          label="Gradient Mode"
+                          options={[
+                            { value: 'per-line', label: 'Per Line' },
+                            { value: 'overall', label: 'Overall' },
+                          ]}
+                          value={config.pattern?.gradientMode ?? 'per-line'}
+                          onChange={(v) => update('pattern.gradientMode', v)}
+                        />
+                        <ColorInput
+                          label="Gradient End"
+                          value={config.pattern?.gradientColorEnd ?? '#a0a0ff'}
+                          onChange={(v) => update('pattern.gradientColorEnd', v)}
+                        />
+                        <Slider
+                          label="Gradient Angle"
+                          value={config.pattern?.gradientAngle ?? 180}
+                          min={0}
+                          max={360}
+                          step={1}
+                          onChange={(v) => update('pattern.gradientAngle', v)}
+                        />
+                      </>
+                    )}
                   </>
                 )}
-                <SectionJsonCopy config={config} keys={['backgroundColor', 'pattern']} />
+                <SectionJsonCopy config={config} keys={['backgroundColor', 'backgroundGradient', 'pattern']} />
               </Section>
 
               <Section title="Hero Image">
@@ -1129,6 +1244,8 @@ export default function PosterEditorPage() {
                   onChange={(v) => update('hero.style', v)}
                 />
                 <Slider label="Height %" value={config.hero.heightPercent} min={0} max={80} onChange={(v) => update('hero.heightPercent', v)} />
+                <Slider label="Position X" value={config.hero.positionX ?? 0} min={-500} max={500} onChange={(v) => update('hero.positionX', v)} />
+                <Slider label="Position Y" value={config.hero.positionY ?? 0} min={-500} max={1000} onChange={(v) => update('hero.positionY', v)} />
                 {config.hero.style === 'glass-refraction' && (
                   <>
                     <Slider label="Inner Circle" value={config.hero.glass.innerCircleSizePx} min={50} max={900} onChange={(v) => update('hero.glass.innerCircleSizePx', v)} />
@@ -1160,7 +1277,7 @@ export default function PosterEditorPage() {
                 <Slider label="Border Radius" value={config.avatar.borderRadius} min={0} max={200} onChange={(v) => update('avatar.borderRadius', v)} />
                 <Slider label="Border Width" value={config.avatar.borderWidth} min={0} max={20} onChange={(v) => update('avatar.borderWidth', v)} />
                 <Slider label="Position X" value={config.avatar.positionX} min={-500} max={800} onChange={(v) => update('avatar.positionX', v)} />
-                <Slider label="Position Y" value={config.avatar.positionY} min={-600} max={600} onChange={(v) => update('avatar.positionY', v)} />
+                <Slider label="Position Y" value={config.avatar.positionY} min={-200} max={1400} onChange={(v) => update('avatar.positionY', v)} />
                 <hr className="border-slate-100" />
                 <Slider label="Flag Size" value={config.flag.sizePx} min={8} max={200} onChange={(v) => update('flag.sizePx', v)} />
                 <Slider label="Flag Offset X" value={config.flag.offsetX} min={-200} max={200} onChange={(v) => update('flag.offsetX', v)} />
@@ -1304,7 +1421,7 @@ export default function PosterEditorPage() {
 
               <Section title="Content Area">
                 <Slider label="Horizontal Padding" value={config.content.paddingX} min={0} max={300} onChange={(v) => update('content.paddingX', v)} />
-                <Slider label="Hero Overlap" value={config.content.overlapHeroPx} min={-200} max={500} onChange={(v) => update('content.overlapHeroPx', v)} />
+                <Slider label="Content Y" value={config.content.positionY ?? 650} min={0} max={1600} onChange={(v) => update('content.positionY', v)} />
                 <SectionJsonCopy config={config} keys={['content']} />
               </Section>
             </div>
@@ -1451,29 +1568,63 @@ export default function PosterEditorPage() {
           className="w-[42%] bg-slate-100 border-l border-slate-200 overflow-auto p-4 space-y-6"
         >
           <div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              9:16 — {config.canvasWidth} × {config.canvasHeight}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                9:16 — {config.canvasWidth} × {config.canvasHeight}
+              </span>
+              <button
+                onClick={() => exportPoster('9:16')}
+                disabled={!!exporting}
+                className="text-[11px] px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                {exporting === '9:16' ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Exporting...
+                  </>
+                ) : 'Export PNG'}
+              </button>
             </div>
             <PosterPreview
               config={config}
               containerWidth={previewWidth}
               testImage={testImage}
               testAvatar={testAvatar}
-              testFlagCode={flagCode}
+              flagImageSrc={flagDataUrl}
               sampleData={sampleData}
             />
           </div>
 
           <div>
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              4:5 — {config4x5.canvasWidth} × {config4x5.canvasHeight}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                4:5 — {config4x5.canvasWidth} × {config4x5.canvasHeight}
+              </span>
+              <button
+                onClick={() => exportPoster('4:5')}
+                disabled={!!exporting}
+                className="text-[11px] px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                {exporting === '4:5' ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Exporting...
+                  </>
+                ) : 'Export PNG'}
+              </button>
             </div>
             <PosterPreview
               config={config4x5}
               containerWidth={previewWidth}
               testImage={testImage}
               testAvatar={testAvatar}
-              testFlagCode={flagCode}
+              flagImageSrc={flagDataUrl}
               sampleData={sampleData}
             />
           </div>
@@ -1486,6 +1637,37 @@ export default function PosterEditorPage() {
           onClose={() => setShowSaveModal(false)}
         />
       )}
+
+      {/* Hidden full-size capture containers — same PosterCanvas, no scaling */}
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          left: '-99999px',
+          top: 0,
+          pointerEvents: 'none',
+          opacity: 1,
+        }}
+      >
+        <div ref={captureRef916}>
+          <PosterCanvas
+            config={config}
+            data={sampleData}
+            imageBase64={testImage}
+            avatarBase64={testAvatar}
+            flagImageSrc={flagDataUrl}
+          />
+        </div>
+        <div ref={captureRef4x5}>
+          <PosterCanvas
+            config={config4x5}
+            data={sampleData}
+            imageBase64={testImage}
+            avatarBase64={testAvatar}
+            flagImageSrc={flagDataUrl}
+          />
+        </div>
+      </div>
     </>
   )
 }

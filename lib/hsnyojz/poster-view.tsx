@@ -198,7 +198,9 @@ export function PosterCanvas({
   const heroHeight = Math.round(
     (config.hero.heightPercent / 100) * config.canvasHeight,
   )
-  const contentTop = heroHeight - config.content.overlapHeroPx
+  const heroX = config.hero.positionX ?? 0
+  const heroY = config.hero.positionY ?? 0
+  const contentTop = config.content.positionY ?? (heroHeight - config.content.overlapHeroPx)
 
   const hlAr = config.headline.arabic
   const hlEn = config.headline.english
@@ -299,8 +301,8 @@ export function PosterCanvas({
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
+          top: heroY,
+          left: heroX,
           width: config.canvasWidth,
           height: heroHeight,
           overflow: 'hidden',
@@ -508,53 +510,6 @@ export function PosterCanvas({
           />
         </div>
 
-        {avatarBase64 && (
-          <div
-            style={{
-              position: 'absolute',
-              right: config.avatar.positionX,
-              top: config.avatar.positionY,
-              zIndex: 10,
-            }}
-          >
-            <div style={{ position: 'relative' }}>
-              <div
-                style={{
-                  width: config.avatar.sizePx,
-                  height: config.avatar.sizePx,
-                  borderRadius: config.avatar.borderRadius,
-                  border: `${config.avatar.borderWidth}px solid ${config.avatar.borderColor}`,
-                  overflow: 'hidden',
-                }}
-              >
-                <img
-                  src={avatarBase64}
-                  alt=""
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              </div>
-              {flagImageSrc && (
-                <img
-                  src={flagImageSrc}
-                  alt=""
-                  style={{
-                    position: 'absolute',
-                    bottom: config.flag.offsetY,
-                    right: config.flag.offsetX,
-                    width: config.flag.sizePx,
-                    height: Math.round(config.flag.sizePx * 0.75),
-                    objectFit: 'contain',
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
         {(data.bullets.length > 0 || data.customNotes) && (
           <div
             style={{
@@ -713,6 +668,53 @@ export function PosterCanvas({
           )}
         </div>
       </div>
+
+      {avatarBase64 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: heroY + (config.avatar.positionY ?? 0),
+            right: config.avatar.positionX,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                width: config.avatar.sizePx,
+                height: config.avatar.sizePx,
+                borderRadius: config.avatar.borderRadius,
+                border: `${config.avatar.borderWidth}px solid ${config.avatar.borderColor}`,
+                overflow: 'hidden',
+              }}
+            >
+              <img
+                src={avatarBase64}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
+            {flagImageSrc && (
+              <img
+                src={flagImageSrc}
+                alt=""
+                style={{
+                  position: 'absolute',
+                  bottom: config.flag.offsetY,
+                  right: config.flag.offsetX,
+                  width: config.flag.sizePx,
+                  height: Math.round(config.flag.sizePx * 0.75),
+                  objectFit: 'contain',
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {showDimensionsBadge && (
         <div

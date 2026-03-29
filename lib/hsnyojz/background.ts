@@ -6,17 +6,25 @@ const DEFAULT_PATTERN: PatternConfig = {
   color: '#d0d0d0',
   opacity: 0.3,
   scale: 1,
+  strokeWidth: 1,
+  wavelength: 1,
+  gradientEnabled: false,
+  gradientColorEnd: '#a0a0ff',
+  gradientAngle: 180,
+  gradientMode: 'per-line',
 }
 
 function buildPatternTileSvg(
   type: string,
   color: string,
   scale: number,
+  strokeMul = 1,
+  wavelengthMul = 1,
 ): { svg: string; tileW: number; tileH: number } | null {
   switch (type) {
     case 'dots': {
       const s = Math.round(20 * scale)
-      const r = Math.max(1.5, s * 0.1)
+      const r = Math.max(0.5, s * 0.1 * strokeMul)
       return {
         tileW: s,
         tileH: s,
@@ -24,10 +32,10 @@ function buildPatternTileSvg(
       }
     }
     case 'waves': {
-      const w = Math.round(100 * scale)
+      const w = Math.round(100 * scale * wavelengthMul)
       const h = Math.round(20 * scale)
       const mid = h / 2
-      const sw = Math.max(0.8, scale * 1)
+      const sw = Math.max(0.3, scale * 1 * strokeMul)
       return {
         tileW: w,
         tileH: h,
@@ -35,9 +43,9 @@ function buildPatternTileSvg(
       }
     }
     case 'topography': {
-      const w = Math.round(200 * scale)
+      const w = Math.round(200 * scale * wavelengthMul)
       const h = Math.round(120 * scale)
-      const sw = Math.max(0.5, scale * 0.8)
+      const sw = Math.max(0.3, scale * 0.8 * strokeMul)
       return {
         tileW: w,
         tileH: h,
@@ -54,7 +62,7 @@ function buildPatternTileSvg(
       const s = Math.round(24 * scale)
       const c = s / 2
       const arm = s * 0.22
-      const sw = Math.max(0.5, scale * 0.7)
+      const sw = Math.max(0.3, scale * 0.7 * strokeMul)
       return {
         tileW: s,
         tileH: s,
@@ -66,6 +74,37 @@ function buildPatternTileSvg(
   }
 }
 
+function gradientAngleToSvgCoords(angle: number) {
+  const rad = (angle * Math.PI) / 180
+  return {
+    x1: 0.5 - 0.5 * Math.sin(rad),
+    y1: 0.5 + 0.5 * Math.cos(rad),
+    x2: 0.5 + 0.5 * Math.sin(rad),
+    y2: 0.5 - 0.5 * Math.cos(rad),
+  }
+}
+
+function buildPerLineTileSvg(
+  type: string,
+  color: string,
+  colorEnd: string,
+  angle: number,
+  scale: number,
+  strokeMul: number,
+  wavelengthMul: number,
+): { svg: string; tileW: number; tileH: number } | null {
+  const base = buildPatternTileSvg(type, 'url(#lg)', scale, strokeMul, wavelengthMul)
+  if (!base) return null
+  const g = gradientAngleToSvgCoords(angle)
+  const gradDef =
+    `<defs><linearGradient id="lg" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}">` +
+    `<stop offset="0%" stop-color="${color}"/>` +
+    `<stop offset="100%" stop-color="${colorEnd}"/>` +
+    `</linearGradient></defs>`
+  const inner = base.svg.replace(/<svg([^>]*)>/, `<svg$1>${gradDef}`)
+  return { svg: inner, tileW: base.tileW, tileH: base.tileH }
+}
+
 export async function createPatternBackground(
   width: number,
   height: number,
@@ -74,17 +113,58 @@ export async function createPatternBackground(
   const p = pattern ?? DEFAULT_PATTERN
   if (p.type === 'none') return null
 
-  const tile = buildPatternTileSvg(p.type, p.color, p.scale)
-  if (!tile) return null
+  const mode = p.gradientMode ?? 'per-line'
+  const swMul = p.strokeWidth ?? 1
+  const wlMul = p.wavelength ?? 1
+  let tiledSvg: string
 
-  const tiledSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <pattern id="p" width="${tile.tileW}" height="${tile.tileH}" patternUnits="userSpaceOnUse">
-        ${tile.svg.replace(/<\/?svg[^>]*>/g, '')}
-      </pattern>
-    </defs>
-    <rect width="${width}" height="${height}" fill="url(#p)" opacity="${p.opacity}"/>
-  </svg>`
+  if (p.gradientEnabled && mode === 'per-line') {
+    const tile = buildPerLineTileSvg(p.type, p.color, p.gradientColorEnd ?? '#a0a0ff', p.gradientAngle ?? 180, p.scale, swMul, wlMul)
+    if (!tile) return null
+    const tileInner = tile.svg.replace(/<\/?svg[^>]*>/g, '')
+    tiledSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="p" width="${tile.tileW}" height="${tile.tileH}" patternUnits="userSpaceOnUse">
+          ${tileInner}
+        </pattern>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#p)" opacity="${p.opacity}"/>
+    </svg>`
+  } else if (p.gradientEnabled && mode === 'overall') {
+    const tile = buildPatternTileSvg(p.type, p.color, p.scale, swMul, wlMul)
+    if (!tile) return null
+    const maskTile = buildPatternTileSvg(p.type, '#ffffff', p.scale, swMul, wlMul)
+    const maskInner = (maskTile ?? tile).svg.replace(/<\/?svg[^>]*>/g, '')
+    const g = gradientAngleToSvgCoords(p.gradientAngle ?? 180)
+
+    tiledSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}">
+          <stop offset="0%" stop-color="${p.color}"/>
+          <stop offset="100%" stop-color="${p.gradientColorEnd ?? '#a0a0ff'}"/>
+        </linearGradient>
+        <pattern id="mp" width="${tile.tileW}" height="${tile.tileH}" patternUnits="userSpaceOnUse">
+          ${maskInner}
+        </pattern>
+        <mask id="m">
+          <rect width="${width}" height="${height}" fill="url(#mp)"/>
+        </mask>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#g)" mask="url(#m)" opacity="${p.opacity}"/>
+    </svg>`
+  } else {
+    const tile = buildPatternTileSvg(p.type, p.color, p.scale, swMul, wlMul)
+    if (!tile) return null
+    const tileInner = tile.svg.replace(/<\/?svg[^>]*>/g, '')
+    tiledSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="p" width="${tile.tileW}" height="${tile.tileH}" patternUnits="userSpaceOnUse">
+          ${tileInner}
+        </pattern>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#p)" opacity="${p.opacity}"/>
+    </svg>`
+  }
 
   const buffer = await sharp(Buffer.from(tiledSvg)).png().toBuffer()
   return `data:image/png;base64,${buffer.toString('base64')}`

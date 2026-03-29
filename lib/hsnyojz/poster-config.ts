@@ -50,6 +50,8 @@ export interface PosterDesignConfig {
 
   hero: {
     heightPercent: number
+    positionX: number
+    positionY: number
     style: 'glass-refraction' | 'plain'
     glass: {
       innerCircleSizePx: number
@@ -184,6 +186,7 @@ export interface PosterDesignConfig {
 
   content: {
     paddingX: number
+    positionY: number
     overlapHeroPx: number
   }
 
@@ -218,6 +221,8 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
 
   hero: {
     heightPercent: 37,
+    positionX: 0,
+    positionY: 0,
     style: 'glass-refraction',
     glass: {
       innerCircleSizePx: 382,
@@ -244,7 +249,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     borderWidth: 12,
     borderColor: 'rgba(0,0,0,0.08)',
     positionX: 239,
-    positionY: -230,
+    positionY: 420,
     gapFromHeadline: 44,
   },
 
@@ -392,6 +397,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
 
   content: {
     paddingX: 84,
+    positionY: 650,
     overlapHeroPx: 60,
   },
 
@@ -436,6 +442,7 @@ export const DEFAULT_POSTER_CONFIG_4x5: PosterDesignConfig = {
   },
   content: {
     ...DEFAULT_POSTER_CONFIG.content,
+    positionY: 440,
     overlapHeroPx: 64,
   },
 }

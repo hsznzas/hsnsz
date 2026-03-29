@@ -25,6 +25,7 @@
     "clsx": "^2.1.0",
     "date-fns": "^3.2.0",
     "framer-motion": "^10.18.0",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.303.0",
     "next": "14.2",
     "puppeteer-core": "^24.40.0",
