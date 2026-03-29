@@ -3,6 +3,16 @@
 import { useState, useRef } from 'react'
 
 type InputMode = 'url' | 'text' | 'image'
+const DESIGN_CONFIG_LS_KEY = 'hsnyojz-poster-config'
+
+function getLocalDesignConfig() {
+  try {
+    const raw = localStorage.getItem(DESIGN_CONFIG_LS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 export default function HsnYojzPreview() {
   const [mode, setMode] = useState<InputMode>('url')
@@ -57,6 +67,7 @@ export default function HsnYojzPreview() {
 
     try {
       const body: Record<string, string> = {}
+      const designConfig = getLocalDesignConfig()
 
       if (mode === 'url') {
         body.url = url.trim()
@@ -73,7 +84,10 @@ export default function HsnYojzPreview() {
       const res = await fetch('/api/hsnyojz/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          ...body,
+          ...(designConfig ? { designConfig } : {}),
+        }),
       })
 
       if (!res.ok) {

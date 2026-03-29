@@ -9,6 +9,14 @@ export interface HeadlineFontConfig extends FontStyleConfig {
   letterSpacing: number
 }
 
+export interface ShadowConfig {
+  offsetX: number
+  offsetY: number
+  blur: number
+  color: string
+  opacity: number
+}
+
 export type PatternType = 'none' | 'dots' | 'waves' | 'topography' | 'cross-dots'
 
 export interface PatternConfig {
@@ -80,6 +88,8 @@ export interface PosterDesignConfig {
     fontWeight: number
     color: string
     backgroundColor: string
+    positionX: number
+    positionY: number
     paddingX: number
     paddingY: number
     lineWidth: number
@@ -90,6 +100,7 @@ export interface PosterDesignConfig {
   headline: {
     arabic: HeadlineFontConfig
     english: HeadlineFontConfig
+    shadow: ShadowConfig
     marginBottom: number
     maxLines: number
     shrinkStepPercent: number
@@ -105,7 +116,10 @@ export interface PosterDesignConfig {
   bullets: {
     arabic: FontStyleConfig
     english: FontStyleConfig
+    shadow: ShadowConfig
+    iconShadow: ShadowConfig
     gap: number
+    lineSpacingPx: number
     anchorY: number
     positionX: number
     borderLineWidth: number
@@ -170,7 +184,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
   canvasHeight: 1920,
   backgroundColor: '#fafafa',
   pattern: {
-    type: 'dots',
+    type: 'waves',
     color: '#d0d0d0',
     opacity: 0.3,
     scale: 1,
@@ -180,10 +194,10 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     heightPercent: 39,
     style: 'glass-refraction',
     glass: {
-      innerCircleSizePx: 496,
-      outerCircleSizePx: 550,
-      blurAmount: 59,
-      opacity: 0.5,
+      innerCircleSizePx: 382,
+      outerCircleSizePx: 434,
+      blurAmount: 10,
+      opacity: 0.3,
     },
     plain: {
       imageWidthPercent: 88,
@@ -199,19 +213,19 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
   },
 
   avatar: {
-    sizePx: 155,
-    borderRadius: 161,
-    borderWidth: 0,
+    sizePx: 121,
+    borderRadius: 163,
+    borderWidth: 12,
     borderColor: 'rgba(0,0,0,0.08)',
-    positionX: 200,
-    positionY: -200,
+    positionX: 239,
+    positionY: -230,
     gapFromHeadline: 44,
   },
 
   flag: {
-    sizePx: 69,
-    offsetX: -41,
-    offsetY: 59,
+    sizePx: 47,
+    offsetX: 34,
+    offsetY: -11,
     source: 'flagpedia-waving',
     flagpediaSize: '256x192',
     backgroundCircleSizePx: 96,
@@ -223,40 +237,49 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     color: '#757c7d',
     opacity: 0,
     positionTop: 500,
-    positionLeft: 682,
+    positionLeft: 486,
   },
 
   sourceTag: {
     fontSize: 30,
-    fontWeight: 700,
+    fontWeight: 900,
     color: '#ffffff',
     backgroundColor: '#000000',
-    paddingX: 8,
-    paddingY: 2,
-    lineWidth: 47,
+    positionX: 8,
+    positionY: -5,
+    paddingX: 21,
+    paddingY: 4,
+    lineWidth: 36,
     lineColor: 'rgba(173,179,180,0.3)',
-    marginBottom: 16,
+    marginBottom: -12,
   },
 
   headline: {
     arabic: {
-      fontSize: 69,
+      fontSize: 76,
       fontWeight: 700,
-      lineHeight: 0.65,
-      letterSpacing: -0.5,
+      lineHeight: 1.2,
+      letterSpacing: -2,
       color: '#000000',
     },
     english: {
-      fontSize: 57,
+      fontSize: 60,
       fontWeight: 700,
       lineHeight: 1.25,
       letterSpacing: -1.5,
       color: '#000000',
     },
-    marginBottom: 35,
-    maxLines: 4,
+    shadow: {
+      offsetX: 1,
+      offsetY: 3,
+      blur: 3,
+      color: '#ccd2ff',
+      opacity: 0.94,
+    },
+    marginBottom: 17,
+    maxLines: 3,
     shrinkStepPercent: 5,
-    minFontSizePercent: 60,
+    minFontSizePercent: 58,
     fontSize: 84,
     fontWeight: 700,
     lineHeight: 1.25,
@@ -267,7 +290,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
 
   bullets: {
     arabic: {
-      fontSize: 69,
+      fontSize: 63,
       fontWeight: 400,
       lineHeight: 0.5,
       color: '#3d4b7f',
@@ -278,7 +301,22 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
       lineHeight: 1.2,
       color: '#3d4b7f',
     },
-    gap: 50,
+    shadow: {
+      offsetX: 2,
+      offsetY: 3,
+      blur: 3,
+      color: '#b8b8b8',
+      opacity: 0.62,
+    },
+    iconShadow: {
+      offsetX: 2,
+      offsetY: 4,
+      blur: 4,
+      color: '#b8b8b8',
+      opacity: 0.74,
+    },
+    gap: 28,
+    lineSpacingPx: 15,
     anchorY: 314,
     positionX: -20,
     borderLineWidth: 0,
@@ -289,7 +327,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     iconOffsetX: 13,
     iconOffsetY: 20,
     paddingRight: -21,
-    marginBottom: 40,
+    marginBottom: 43,
     dotSize: 10,
     dotColor: '#5f5e5e',
     dotOffsetX: -9,
@@ -312,7 +350,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
   brand: {
     text: 'حسن يوجز',
     handle: '@Hassan Alsharif',
-    fontSize: 40,
+    fontSize: 43,
     fontWeight: 300,
     color: '#2d3435',
     opacity: 0.35,
@@ -321,7 +359,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     paddingBottom: 73,
     showBrandText: true,
     showHandle: true,
-    handleFontSize: 11,
+    handleFontSize: 23,
     handleColor: '#c2c2c2',
     handleOpacity: 1,
   },

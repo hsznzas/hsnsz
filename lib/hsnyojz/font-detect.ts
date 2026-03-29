@@ -10,18 +10,34 @@ export interface TextSegment {
 
 /**
  * Split mixed Arabic/English text into renderable tokens.
- * Words stay isolated so mixed-language wrapping can break at spaces.
+ * Split on script changes too, so strings like "الـ11" render
+ * Arabic letters and ASCII digits with their intended fonts while
+ * keeping grouped numbers like "5,800" or "SAR 2,976" intact.
  */
 export function splitByLanguage(text: string): TextSegment[] {
-  const tokens = text.match(/\s+|[^\s]+/g) || []
+  const arabicSource = ARABIC_CHAR.source.replace(/^\[|\]$/g, '')
+  const tokenRe = new RegExp(
+    [
+      '\\s+',
+      `[${arabicSource}]+`,
+      '[A-Za-z0-9]+(?:[.,:%/+\\-][A-Za-z0-9]+)*',
+      '.',
+    ].join('|'),
+    'g',
+  )
+
+  const tokens = text.match(tokenRe) || []
   return tokens.map((token) => {
     if (/^\s+$/.test(token)) {
       return { text: token, lang: 'neutral' as const }
     }
-    return {
-      text: token,
-      lang: ARABIC_CHAR.test(token) ? 'arabic' as const : 'english' as const,
+    if (ARABIC_CHAR.test(token)) {
+      return { text: token, lang: 'arabic' as const }
     }
+    if (/[A-Za-z0-9]/.test(token)) {
+      return { text: token, lang: 'english' as const }
+    }
+    return { text: token, lang: 'neutral' as const }
   })
 }
 

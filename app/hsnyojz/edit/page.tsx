@@ -123,7 +123,7 @@ function ColorInput({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 min-w-0 text-[11px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5"
+          className="flex-1 min-w-0 text-[11px] font-mono text-slate-900 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 placeholder:text-slate-500"
         />
       </div>
     </div>
@@ -207,14 +207,293 @@ function TextInput({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="text-[12px] bg-slate-100 border border-slate-200 rounded px-2 py-1"
+        className="text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1 placeholder:text-slate-500"
         dir="auto"
       />
     </div>
   )
 }
 
+function ShadowControls({
+  title,
+  path,
+  shadow,
+  update,
+}: {
+  title: string
+  path: string
+  shadow: {
+    offsetX: number
+    offsetY: number
+    blur: number
+    color: string
+    opacity: number
+  }
+  update: (path: string, value: unknown) => void
+}) {
+  return (
+    <>
+      <hr className="border-slate-100" />
+      <div className="text-[10px] font-semibold text-violet-500 uppercase tracking-wider">
+        {title}
+      </div>
+      <Slider
+        label="Shadow X"
+        value={shadow.offsetX}
+        min={-40}
+        max={40}
+        onChange={(v) => update(`${path}.offsetX`, v)}
+      />
+      <Slider
+        label="Shadow Y"
+        value={shadow.offsetY}
+        min={-40}
+        max={40}
+        onChange={(v) => update(`${path}.offsetY`, v)}
+      />
+      <Slider
+        label="Shadow Blur"
+        value={shadow.blur}
+        min={0}
+        max={80}
+        onChange={(v) => update(`${path}.blur`, v)}
+      />
+      <Slider
+        label="Shadow Opacity"
+        value={shadow.opacity}
+        min={0}
+        max={1}
+        step={0.01}
+        onChange={(v) => update(`${path}.opacity`, v)}
+      />
+      <ColorInput
+        label="Shadow Color"
+        value={shadow.color}
+        onChange={(v) => update(`${path}.color`, v)}
+      />
+    </>
+  )
+}
+
+// ── Per-Section JSON Copy ──
+
+function SectionJsonCopy({
+  config,
+  keys,
+}: {
+  config: PosterDesignConfig
+  keys: (keyof PosterDesignConfig)[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const partial: Record<string, unknown> = {}
+  for (const key of keys) {
+    partial[key] = config[key]
+  }
+  const json = JSON.stringify(partial, null, 2)
+
+  function copy() {
+    navigator.clipboard.writeText(json)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="mt-1 pt-2 border-t border-slate-100">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setOpen(!open)}
+          className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          {open ? 'Hide' : 'Show'} JSON
+        </button>
+        <button
+          onClick={copy}
+          className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded hover:bg-slate-200 transition-colors"
+        >
+          {copied ? 'Copied!' : 'Copy JSON'}
+        </button>
+      </div>
+      {open && (
+        <pre className="mt-1.5 text-[10px] font-mono bg-slate-50 border border-slate-200 rounded p-2 overflow-auto max-h-48 text-slate-600 whitespace-pre-wrap">
+          {json}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 // ── Collapsible Section ──
+
+type SectionMeta = {
+  description: string
+  accentClass: string
+  iconBgClass: string
+  iconTextClass: string
+  chipClass: string
+  icon: 'canvas' | 'image' | 'avatar' | 'calendar' | 'headline' | 'bullets' | 'notes' | 'brand' | 'layout' | 'link'
+}
+
+const SECTION_META: Record<string, SectionMeta> = {
+  'Canvas': {
+    description: 'Background, pattern, and overall base',
+    accentClass: 'bg-sky-500',
+    iconBgClass: 'bg-sky-100',
+    iconTextClass: 'text-sky-600',
+    chipClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    icon: 'canvas',
+  },
+  'Hero Image': {
+    description: 'Main visual style and image treatment',
+    accentClass: 'bg-violet-500',
+    iconBgClass: 'bg-violet-100',
+    iconTextClass: 'text-violet-600',
+    chipClass: 'bg-violet-50 text-violet-700 border-violet-200',
+    icon: 'image',
+  },
+  'Avatar & Flag': {
+    description: 'Profile image, flag, and placement',
+    accentClass: 'bg-amber-500',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    chipClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: 'avatar',
+  },
+  'Date & Source': {
+    description: 'Top metadata row and tag styling',
+    accentClass: 'bg-emerald-500',
+    iconBgClass: 'bg-emerald-100',
+    iconTextClass: 'text-emerald-600',
+    chipClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon: 'calendar',
+  },
+  'Headline': {
+    description: 'Primary title typography and shadow',
+    accentClass: 'bg-indigo-500',
+    iconBgClass: 'bg-indigo-100',
+    iconTextClass: 'text-indigo-600',
+    chipClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    icon: 'headline',
+  },
+  'Bullets': {
+    description: 'Bullet text, spacing, and symbols',
+    accentClass: 'bg-blue-500',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    chipClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    icon: 'bullets',
+  },
+  'Notes': {
+    description: 'Optional note styling under bullets',
+    accentClass: 'bg-rose-500',
+    iconBgClass: 'bg-rose-100',
+    iconTextClass: 'text-rose-600',
+    chipClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    icon: 'notes',
+  },
+  'Brand Footer': {
+    description: 'Brand text, handle, and footer spacing',
+    accentClass: 'bg-fuchsia-500',
+    iconBgClass: 'bg-fuchsia-100',
+    iconTextClass: 'text-fuchsia-600',
+    chipClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+    icon: 'brand',
+  },
+  'Content Area': {
+    description: 'Main content bounds and overlap',
+    accentClass: 'bg-teal-500',
+    iconBgClass: 'bg-teal-100',
+    iconTextClass: 'text-teal-600',
+    chipClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    icon: 'layout',
+  },
+  'Test Link': {
+    description: 'Pull article data into the live preview',
+    accentClass: 'bg-orange-500',
+    iconBgClass: 'bg-orange-100',
+    iconTextClass: 'text-orange-600',
+    chipClass: 'bg-orange-50 text-orange-700 border-orange-200',
+    icon: 'link',
+  },
+}
+
+function SectionIcon({ icon }: { icon: SectionMeta['icon'] }) {
+  switch (icon) {
+    case 'canvas':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      )
+    case 'image':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <circle cx="9" cy="10" r="1.5" />
+          <path d="M21 15l-4.5-4.5L8 19" />
+        </svg>
+      )
+    case 'avatar':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="8" r="3.5" />
+          <path d="M5 19c1.8-3 4.1-4.5 7-4.5S17.2 16 19 19" />
+        </svg>
+      )
+    case 'calendar':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="5" width="16" height="15" rx="2" />
+          <path d="M8 3v4M16 3v4M4 9h16" />
+        </svg>
+      )
+    case 'headline':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M5 7h14M9 7v10M15 7v10M5 12h14" />
+        </svg>
+      )
+    case 'bullets':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="6" cy="7" r="1" fill="currentColor" />
+          <circle cx="6" cy="12" r="1" fill="currentColor" />
+          <circle cx="6" cy="17" r="1" fill="currentColor" />
+          <path d="M10 7h8M10 12h8M10 17h8" />
+        </svg>
+      )
+    case 'notes':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M6 4h9l3 3v13H6z" />
+          <path d="M15 4v4h4M9 12h6M9 16h4" />
+        </svg>
+      )
+    case 'brand':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M6 18V6h5a3 3 0 010 6H6m5 0h1.5A3.5 3.5 0 0116 15.5 3.5 3.5 0 0112.5 19H6" />
+        </svg>
+      )
+    case 'layout':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="M4 10h16M10 10v9" />
+        </svg>
+      )
+    case 'link':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M10 13a4 4 0 000-6l-1-1a4 4 0 10-5.7 5.6l1 1" />
+          <path d="M14 11a4 4 0 000 6l1 1a4 4 0 105.7-5.6l-1-1" />
+          <path d="M8 12h8" />
+        </svg>
+      )
+  }
+}
 
 function Section({
   title,
@@ -226,15 +505,40 @@ function Section({
   defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const meta = SECTION_META[title] ?? {
+    description: 'Design controls',
+    accentClass: 'bg-slate-500',
+    iconBgClass: 'bg-slate-100',
+    iconTextClass: 'text-slate-600',
+    chipClass: 'bg-slate-50 text-slate-700 border-slate-200',
+    icon: 'layout' as const,
+  }
+
   return (
     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+      <div className={`h-1 ${meta.accentClass}`} />
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 transition-colors"
       >
-        <span className="text-[12px] font-semibold text-slate-700">
-          {title}
-        </span>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${meta.iconBgClass} ${meta.iconTextClass}`}>
+            <SectionIcon icon={meta.icon} />
+          </div>
+          <div className="min-w-0 text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-semibold text-slate-800">
+                {title}
+              </span>
+              <span className={`hidden md:inline-flex text-[9px] px-1.5 py-0.5 rounded-full border ${meta.chipClass}`}>
+                {open ? 'Open' : 'Closed'}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-500 truncate">
+              {meta.description}
+            </div>
+          </div>
+        </div>
         <svg
           className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none"
@@ -380,6 +684,9 @@ export default function PosterEditorPage() {
   const syncRef = useRef<ReturnType<typeof setTimeout>>()
   const [sampleData, setSampleData] = useState<SampleData>({ ...BUILTIN_SAMPLE, bullets: [...BUILTIN_SAMPLE.bullets] })
   const [isDefaultSample, setIsDefaultSample] = useState(false)
+  const [testUrl, setTestUrl] = useState('')
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -535,12 +842,89 @@ export default function PosterEditorPage() {
     setIsDefaultSample(false)
   }
 
+  async function handleTestLink() {
+    const url = testUrl.trim()
+    if (!url) return
+    setLinkLoading(true)
+    setLinkError(null)
+    try {
+      const res = await fetch('/api/hsnyojz/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Request failed' }))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      const { summary, heroImageBase64, avatarBase64 } = data
+
+      setSampleData({
+        headline: summary.headline,
+        bullets: summary.bullets || [],
+        sourceLabel: summary.sourceLabel || '',
+        customNotes: null,
+      })
+
+      if (heroImageBase64) setTestImage(heroImageBase64)
+      if (avatarBase64) setTestAvatar(avatarBase64)
+
+      if (summary.flagEmoji) {
+        const cp = Array.from(summary.flagEmoji as string).map((c: string) => c.codePointAt(0) || 0)
+        if (cp.length === 2) {
+          const a = cp[0] - 0x1f1e6 + 65
+          const b = cp[1] - 0x1f1e6 + 65
+          if (a >= 65 && a <= 90 && b >= 65 && b <= 90) {
+            setFlagCode(String.fromCharCode(a, b).toLowerCase())
+          }
+        }
+      }
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
   const config4x5: PosterDesignConfig = {
-    ...config,
     ...DEFAULT_POSTER_CONFIG_4x5,
-    hero: { ...config.hero, ...DEFAULT_POSTER_CONFIG_4x5.hero, glass: { ...config.hero.glass, ...DEFAULT_POSTER_CONFIG_4x5.hero.glass } },
-    headline: { ...config.headline, ...DEFAULT_POSTER_CONFIG_4x5.headline, arabic: { ...config.headline.arabic, ...DEFAULT_POSTER_CONFIG_4x5.headline.arabic }, english: { ...config.headline.english, ...DEFAULT_POSTER_CONFIG_4x5.headline.english } },
-    bullets: { ...config.bullets, ...DEFAULT_POSTER_CONFIG_4x5.bullets, arabic: { ...config.bullets.arabic, ...DEFAULT_POSTER_CONFIG_4x5.bullets.arabic }, english: { ...config.bullets.english, ...DEFAULT_POSTER_CONFIG_4x5.bullets.english } },
+    ...config,
+    aspectRatio: '4:5',
+    canvasWidth: DEFAULT_POSTER_CONFIG_4x5.canvasWidth,
+    canvasHeight: DEFAULT_POSTER_CONFIG_4x5.canvasHeight,
+    hero: {
+      ...config.hero,
+      ...DEFAULT_POSTER_CONFIG_4x5.hero,
+      glass: {
+        ...config.hero.glass,
+        ...DEFAULT_POSTER_CONFIG_4x5.hero.glass,
+      },
+    },
+    headline: {
+      ...config.headline,
+      ...DEFAULT_POSTER_CONFIG_4x5.headline,
+      arabic: {
+        ...config.headline.arabic,
+        ...DEFAULT_POSTER_CONFIG_4x5.headline.arabic,
+      },
+      english: {
+        ...config.headline.english,
+        ...DEFAULT_POSTER_CONFIG_4x5.headline.english,
+      },
+    },
+    bullets: {
+      ...config.bullets,
+      ...DEFAULT_POSTER_CONFIG_4x5.bullets,
+      arabic: {
+        ...config.bullets.arabic,
+        ...DEFAULT_POSTER_CONFIG_4x5.bullets.arabic,
+      },
+      english: {
+        ...config.bullets.english,
+        ...DEFAULT_POSTER_CONFIG_4x5.bullets.english,
+      },
+    },
     brand: { ...config.brand, ...DEFAULT_POSTER_CONFIG_4x5.brand },
     content: { ...config.content, ...DEFAULT_POSTER_CONFIG_4x5.content },
   }
@@ -696,6 +1080,7 @@ export default function PosterEditorPage() {
                     />
                   </>
                 )}
+                <SectionJsonCopy config={config} keys={['backgroundColor', 'pattern']} />
               </Section>
 
               <Section title="Hero Image">
@@ -732,6 +1117,7 @@ export default function PosterEditorPage() {
                   <label className="text-[11px] text-slate-500 block mb-1">Test Image</label>
                   <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setTestImage)} className="text-[10px] file:text-[10px] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100" />
                 </div>
+                <SectionJsonCopy config={config} keys={['hero']} />
               </Section>
 
               <Section title="Avatar & Flag">
@@ -749,6 +1135,7 @@ export default function PosterEditorPage() {
                   <label className="text-[11px] text-slate-500 block mb-1">Test Avatar</label>
                   <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, setTestAvatar)} className="text-[10px] file:text-[10px] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100" />
                 </div>
+                <SectionJsonCopy config={config} keys={['avatar', 'flag']} />
               </Section>
             </div>
 
@@ -765,11 +1152,14 @@ export default function PosterEditorPage() {
                 <Slider label="Source Weight" value={config.sourceTag.fontWeight} min={100} max={900} step={100} onChange={(v) => update('sourceTag.fontWeight', v)} />
                 <ColorInput label="Source Color" value={config.sourceTag.color} onChange={(v) => update('sourceTag.color', v)} />
                 <ColorInput label="Source BG" value={config.sourceTag.backgroundColor} onChange={(v) => update('sourceTag.backgroundColor', v)} />
+                <Slider label="Source X" value={config.sourceTag.positionX} min={-300} max={300} onChange={(v) => update('sourceTag.positionX', v)} />
+                <Slider label="Source Y" value={config.sourceTag.positionY} min={-300} max={300} onChange={(v) => update('sourceTag.positionY', v)} />
                 <Slider label="Source Margin Bottom" value={config.sourceTag.marginBottom} min={-50} max={200} onChange={(v) => update('sourceTag.marginBottom', v)} />
                 <Slider label="Source Padding X" value={config.sourceTag.paddingX} min={0} max={40} onChange={(v) => update('sourceTag.paddingX', v)} />
                 <Slider label="Source Padding Y" value={config.sourceTag.paddingY} min={0} max={30} onChange={(v) => update('sourceTag.paddingY', v)} />
                 <Slider label="Line Width" value={config.sourceTag.lineWidth} min={0} max={100} onChange={(v) => update('sourceTag.lineWidth', v)} />
                 <ColorInput label="Line Color" value={config.sourceTag.lineColor} onChange={(v) => update('sourceTag.lineColor', v)} />
+                <SectionJsonCopy config={config} keys={['date', 'sourceTag']} />
               </Section>
 
               <Section title="Headline">
@@ -791,26 +1181,38 @@ export default function PosterEditorPage() {
                 <Slider label="Max Lines" value={config.headline.maxLines} min={1} max={10} onChange={(v) => update('headline.maxLines', v)} />
                 <Slider label="Shrink Step %" value={config.headline.shrinkStepPercent} min={1} max={20} onChange={(v) => update('headline.shrinkStepPercent', v)} />
                 <Slider label="Min Font Size %" value={config.headline.minFontSizePercent} min={30} max={100} onChange={(v) => update('headline.minFontSizePercent', v)} />
+                <ShadowControls
+                  title="Shadow"
+                  path="headline.shadow"
+                  shadow={config.headline.shadow}
+                  update={update}
+                />
+                <SectionJsonCopy config={config} keys={['headline']} />
               </Section>
 
               <Section title="Bullets">
                 <div className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">Arabic</div>
                 <Slider label="Font Size" value={config.bullets.arabic.fontSize} min={8} max={120} onChange={(v) => update('bullets.arabic.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }]} value={String(config.bullets.arabic.fontWeight)} onChange={(v) => update('bullets.arabic.fontWeight', parseInt(v))} />
-                <Slider label="Line Height" value={config.bullets.arabic.lineHeight} min={0.3} max={3.0} step={0.05} onChange={(v) => update('bullets.arabic.lineHeight', v)} />
                 <ColorInput label="Color" value={config.bullets.arabic.color} onChange={(v) => update('bullets.arabic.color', v)} />
                 <hr className="border-slate-100" />
                 <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">English</div>
                 <Slider label="Font Size" value={config.bullets.english.fontSize} min={8} max={120} onChange={(v) => update('bullets.english.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }]} value={String(config.bullets.english.fontWeight)} onChange={(v) => update('bullets.english.fontWeight', parseInt(v))} />
-                <Slider label="Line Height" value={config.bullets.english.lineHeight} min={0.3} max={3.0} step={0.05} onChange={(v) => update('bullets.english.lineHeight', v)} />
                 <ColorInput label="Color" value={config.bullets.english.color} onChange={(v) => update('bullets.english.color', v)} />
                 <hr className="border-slate-100" />
                 <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">Position</div>
                 <Slider label="Anchor Y" value={config.bullets.anchorY} min={-300} max={1400} onChange={(v) => update('bullets.anchorY', v)} />
                 <Slider label="Position X" value={config.bullets.positionX} min={-300} max={300} onChange={(v) => update('bullets.positionX', v)} />
+                <Slider label="Line Spacing" value={config.bullets.lineSpacingPx} min={0} max={160} onChange={(v) => update('bullets.lineSpacingPx', v)} />
                 <Slider label="Gap" value={config.bullets.gap} min={-30} max={150} onChange={(v) => update('bullets.gap', v)} />
                 <Slider label="Margin Bottom" value={config.bullets.marginBottom} min={-80} max={150} onChange={(v) => update('bullets.marginBottom', v)} />
+                <ShadowControls
+                  title="Text Shadow"
+                  path="bullets.shadow"
+                  shadow={config.bullets.shadow}
+                  update={update}
+                />
                 <hr className="border-slate-100" />
                 <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">Symbol</div>
                 <TextInput label="Symbol" value={config.bullets.iconSymbol} onChange={(v) => update('bullets.iconSymbol', v)} />
@@ -818,10 +1220,17 @@ export default function PosterEditorPage() {
                 <ColorInput label="Symbol Color" value={config.bullets.iconColor} onChange={(v) => update('bullets.iconColor', v)} />
                 <Slider label="Symbol Offset X" value={config.bullets.iconOffsetX} min={-50} max={50} onChange={(v) => update('bullets.iconOffsetX', v)} />
                 <Slider label="Symbol Offset Y" value={config.bullets.iconOffsetY} min={-50} max={50} onChange={(v) => update('bullets.iconOffsetY', v)} />
+                <ShadowControls
+                  title="Symbol Shadow"
+                  path="bullets.iconShadow"
+                  shadow={config.bullets.iconShadow}
+                  update={update}
+                />
                 <hr className="border-slate-100" />
                 <Slider label="Border Line Width" value={config.bullets.borderLineWidth} min={0} max={8} onChange={(v) => update('bullets.borderLineWidth', v)} />
                 <ColorInput label="Border Line Color" value={config.bullets.borderLineColor} onChange={(v) => update('bullets.borderLineColor', v)} />
                 <Slider label="Padding Right" value={config.bullets.paddingRight} min={-80} max={120} onChange={(v) => update('bullets.paddingRight', v)} />
+                <SectionJsonCopy config={config} keys={['bullets']} />
               </Section>
             </div>
 
@@ -833,6 +1242,7 @@ export default function PosterEditorPage() {
                 <Slider label="Line Height" value={config.notes.lineHeight} min={0.5} max={3.0} step={0.05} onChange={(v) => update('notes.lineHeight', v)} />
                 <Toggle label="Style" options={[{ value: 'normal', label: 'Normal' }, { value: 'italic', label: 'Italic' }]} value={config.notes.fontStyle} onChange={(v) => update('notes.fontStyle', v)} />
                 <Slider label="Margin Top" value={config.notes.marginTop} min={-30} max={120} onChange={(v) => update('notes.marginTop', v)} />
+                <SectionJsonCopy config={config} keys={['notes']} />
               </Section>
 
               <Section title="Brand Footer">
@@ -854,24 +1264,60 @@ export default function PosterEditorPage() {
                     <Slider label="Handle Opacity" value={config.brand.handleOpacity} min={0} max={1} step={0.01} onChange={(v) => update('brand.handleOpacity', v)} />
                   </>
                 )}
+                <SectionJsonCopy config={config} keys={['brand']} />
               </Section>
 
               <Section title="Content Area">
                 <Slider label="Horizontal Padding" value={config.content.paddingX} min={0} max={300} onChange={(v) => update('content.paddingX', v)} />
                 <Slider label="Hero Overlap" value={config.content.overlapHeroPx} min={-200} max={500} onChange={(v) => update('content.overlapHeroPx', v)} />
+                <SectionJsonCopy config={config} keys={['content']} />
               </Section>
             </div>
 
-            {/* ── Sample Text ── */}
+            {/* ── Test Link ── */}
             <div className="grid grid-cols-1 gap-3">
-              <Section title="Sample Text" defaultOpen={false}>
+              <Section title="Test Link">
                 <div className="flex flex-col gap-2.5">
+                  <div className="flex gap-1.5">
+                    <input
+                      type="url"
+                      value={testUrl}
+                      onChange={(e) => setTestUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleTestLink() }}
+                      placeholder="Paste article URL..."
+                      dir="ltr"
+                      className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      disabled={linkLoading}
+                    />
+                    <button
+                      onClick={handleTestLink}
+                      disabled={linkLoading || !testUrl.trim()}
+                      className="text-[11px] px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 flex-shrink-0"
+                    >
+                      {linkLoading ? (
+                        <>
+                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Summarizing...
+                        </>
+                      ) : 'Summarize'}
+                    </button>
+                  </div>
+
+                  {linkError && (
+                    <div className="text-[11px] text-red-600 bg-red-50 rounded px-2 py-1.5">
+                      {linkError}
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] text-slate-500">Headline</span>
                     <textarea
                       value={sampleData.headline}
                       onChange={(e) => updateSample({ headline: e.target.value })}
-                      className="text-[12px] bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none"
+                      className="text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
                       dir="auto"
                       rows={2}
                     />
@@ -901,7 +1347,7 @@ export default function PosterEditorPage() {
                         <textarea
                           value={bullet}
                           onChange={(e) => updateBullet(i, e.target.value)}
-                          className="flex-1 text-[12px] bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none"
+                          className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
                           dir="auto"
                           rows={2}
                         />

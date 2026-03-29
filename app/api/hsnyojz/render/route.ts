@@ -5,8 +5,7 @@ import {
   DEFAULT_POSTER_CONFIG,
   DEFAULT_POSTER_CONFIG_4x5,
 } from '@/lib/hsnyojz/poster-config'
-import { buildPosterHtml } from '@/lib/hsnyojz/render-html'
-import { renderHtmlToPng } from '@/lib/hsnyojz/puppeteer'
+import { renderPageToPng } from '@/lib/hsnyojz/puppeteer'
 
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
       ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : DEFAULT_POSTER_CONFIG
     const cfg: PosterDesignConfig = userConfig
       ? deepMergeConfig(baseConfig, userConfig)
-      : { ...baseConfig, canvasHeight: ratio === '4:5' ? 1440 : 1920 }
+      : { ...baseConfig }
 
     let resolvedFlagBase64 = providedFlagBase64 || null
     if (!resolvedFlagBase64 && flagEmoji && avatarBase64) {
@@ -47,19 +46,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const html = await buildPosterHtml({
-      headline: summary.headline,
-      bullets: summary.bullets || [],
-      sourceLabel: summary.sourceLabel,
-      customNotes: summary.customNotes,
-      imageBase64: imageBase64 || null,
-      avatarBase64: avatarBase64 || null,
-      flagBase64: resolvedFlagBase64,
-      config: cfg,
-    })
+    const origin = getOrigin(request)
+    const renderUrl = `${origin}/hsnyojz/render-image`
 
-    const pngBuffer = await renderHtmlToPng(
-      html,
+    const pngBuffer = await renderPageToPng(
+      renderUrl,
+      {
+        config: cfg,
+        data: {
+          headline: summary.headline,
+          bullets: summary.bullets || [],
+          sourceLabel: summary.sourceLabel,
+          customNotes: summary.customNotes,
+        },
+        imageBase64: imageBase64 || null,
+        avatarBase64: avatarBase64 || null,
+        flagImageSrc: resolvedFlagBase64,
+      },
       cfg.canvasWidth,
       cfg.canvasHeight,
     )
@@ -79,6 +82,16 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
+}
+
+function getOrigin(request: NextRequest): string {
+  const url = new URL(request.url)
+  if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+    const proto = request.headers.get('x-forwarded-proto') || url.protocol.replace(':', '')
+    const host = request.headers.get('host') || url.host
+    return `${proto}://${host}`
+  }
+  return url.origin
 }
 
 function deepMergeConfig(

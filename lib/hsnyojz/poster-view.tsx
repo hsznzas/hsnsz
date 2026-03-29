@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { splitByLanguage } from './font-detect'
-import type { PosterDesignConfig } from './poster-config'
+import type { PosterDesignConfig, ShadowConfig } from './poster-config'
 
 export interface PosterCanvasData {
   headline: string
@@ -16,6 +16,34 @@ function getFormattedDate(): string {
   ]
   const now = new Date()
   return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`
+}
+
+function withOpacity(color: string, opacity: number): string {
+  const alpha = Math.max(0, Math.min(1, opacity))
+  const hex = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    let value = hex[1]
+    if (value.length === 3) value = value.split('').map((c) => c + c).join('')
+    const r = parseInt(value.slice(0, 2), 16)
+    const g = parseInt(value.slice(2, 4), 16)
+    const b = parseInt(value.slice(4, 6), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const rgb = color.trim().match(/^rgba?\(([^)]+)\)$/i)
+  if (rgb) {
+    const parts = rgb[1].split(',').map((part) => part.trim())
+    if (parts.length >= 3) {
+      return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`
+    }
+  }
+
+  return color
+}
+
+function buildTextShadow(shadow: ShadowConfig): string | undefined {
+  if (shadow.opacity <= 0) return undefined
+  return `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${withOpacity(shadow.color, shadow.opacity)}`
 }
 
 function MixedText({
@@ -127,6 +155,11 @@ export function PosterCanvas({
   const blAr = config.bullets.arabic
   const blEn = config.bullets.english
   const p = config.hero.plain
+  const bulletArabicLineHeight = `calc(${blAr.lineHeight}em + ${config.bullets.lineSpacingPx}px)`
+  const bulletEnglishLineHeight = `calc(${blEn.lineHeight}em + ${config.bullets.lineSpacingPx}px)`
+  const headlineShadow = buildTextShadow(config.headline.shadow)
+  const bulletShadow = buildTextShadow(config.bullets.shadow)
+  const iconShadow = buildTextShadow(config.bullets.iconShadow)
 
   const pattern = config.pattern ?? {
     type: 'dots',
@@ -321,18 +354,13 @@ export function PosterCanvas({
                 color: config.sourceTag.color,
                 fontFamily: "'Source Serif 4', serif",
                 letterSpacing: 1,
+                position: 'relative',
+                transform: `translate(${config.sourceTag.positionX}px, ${config.sourceTag.positionY}px)`,
               }}
             >
               {data.sourceLabel.toUpperCase()}
             </span>
           )}
-          <div
-            style={{
-              flex: 1,
-              height: 1,
-              background: config.sourceTag.lineColor,
-            }}
-          />
           <span
             style={{
               fontSize: config.date.fontSize,
@@ -365,6 +393,7 @@ export function PosterCanvas({
               lineHeight: hlAr.lineHeight,
               letterSpacing: hlAr.letterSpacing,
               color: hlAr.color,
+              textShadow: headlineShadow,
             }}
             englishStyle={{
               fontFamily: "'Source Serif 4', serif",
@@ -373,6 +402,7 @@ export function PosterCanvas({
               lineHeight: hlEn.lineHeight,
               letterSpacing: hlEn.letterSpacing,
               color: hlEn.color,
+              textShadow: headlineShadow,
               paddingLeft: 10,
               paddingRight: 10,
               paddingTop: 14,
@@ -476,10 +506,11 @@ export function PosterCanvas({
                         style={{
                           fontSize: config.bullets.iconSize,
                           color: config.bullets.iconColor,
-                          lineHeight: blAr.lineHeight,
+                          lineHeight: bulletArabicLineHeight,
                           fontFamily: "'Manal', sans-serif",
                           marginLeft: config.bullets.iconOffsetX,
                           marginTop: config.bullets.iconOffsetY,
+                          textShadow: iconShadow,
                         }}
                       >
                         {config.bullets.iconSymbol}
@@ -496,15 +527,17 @@ export function PosterCanvas({
                           fontFamily: "'Manal', sans-serif",
                           fontSize: blAr.fontSize,
                           fontWeight: blAr.fontWeight,
-                          lineHeight: blAr.lineHeight,
+                          lineHeight: bulletArabicLineHeight,
                           color: blAr.color,
+                          textShadow: bulletShadow,
                         }}
                         englishStyle={{
                           fontFamily: "'Source Serif 4', serif",
                           fontSize: blEn.fontSize,
                           fontWeight: blEn.fontWeight,
-                          lineHeight: blEn.lineHeight,
+                          lineHeight: bulletEnglishLineHeight,
                           color: blEn.color,
+                          textShadow: bulletShadow,
                           paddingLeft: 6,
                           paddingRight: 6,
                           paddingTop: 8,

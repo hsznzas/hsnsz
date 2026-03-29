@@ -9,6 +9,7 @@ import {
 import { resolveAvatar } from '@/lib/hsnyojz/avatars'
 import { fetchFlagAsBase64 } from '@/lib/hsnyojz/flags'
 import { getActiveDesignConfig } from '@/lib/hsnyojz/active-config'
+import type { PosterDesignConfig } from '@/lib/hsnyojz/poster-config'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       style = 'default',
       bulletCount = 3,
       customFramingPrompt,
+      designConfig: requestedDesignConfig,
     } = await request.json()
 
     if (!url && !text && !userImageBase64) {
@@ -66,7 +68,9 @@ export async function POST(request: NextRequest) {
     let posterBase64: string | null = null
     try {
       const [designConfig, baseUrl] = await Promise.all([
-        getActiveDesignConfig(),
+        requestedDesignConfig
+          ? Promise.resolve(requestedDesignConfig as PosterDesignConfig)
+          : getActiveDesignConfig(),
         Promise.resolve(getBaseUrl(request)),
       ])
       const renderRes = await fetch(`${baseUrl}/api/hsnyojz/render`, {
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest) {
         entityOrg: processed.entityOrg,
         flagEmoji: processed.flagEmoji,
       },
+      heroImageBase64: processed.heroImageBase64,
+      avatarBase64,
       posterBase64,
     })
   } catch (error) {

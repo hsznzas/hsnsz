@@ -57,6 +57,61 @@ async function getBrowser(): Promise<Browser> {
   return browserInstance
 }
 
+/**
+ * Navigate Puppeteer to a real Next.js page, inject render data via
+ * window.__setPosterData, wait for the poster to render, and screenshot.
+ * This guarantees the export uses the exact same CSS/fonts/layout as the
+ * browser preview because it runs inside the full Next.js app.
+ */
+export async function renderPageToPng(
+  pageUrl: string,
+  renderData: Record<string, unknown>,
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const browser = await getBrowser()
+  const page = await browser.newPage()
+
+  try {
+    await page.setViewport({ width, height, deviceScaleFactor: 1 })
+
+    await page.goto(pageUrl, { waitUntil: 'networkidle0', timeout: 20000 })
+
+    await page.waitForFunction('window.__pageReady === true', { timeout: 10000 })
+
+    await page.evaluate((data) => {
+      window.__setPosterData!(
+        data as unknown as Parameters<NonNullable<typeof window.__setPosterData>>[0],
+      )
+    }, renderData)
+
+    await page.waitForSelector('#poster', { timeout: 10000 })
+
+    await page.evaluate(() => document.fonts.ready)
+
+    // Two rAF ticks to ensure layout + paint have completed
+    await page.evaluate(() => new Promise<void>(r =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r())),
+    ))
+
+    // Remove Next.js dev error overlay so it doesn't bleed into the screenshot
+    await page.evaluate(() => {
+      document.querySelector('nextjs-portal')?.remove()
+    })
+
+    const element = await page.$('#poster')
+    if (!element) throw new Error('Poster element not found')
+
+    const screenshot = await element.screenshot({ type: 'png' })
+    return Buffer.from(screenshot)
+  } finally {
+    await page.close()
+  }
+}
+
+/**
+ * Render a self-contained HTML string to PNG (fallback / legacy path).
+ */
 export async function renderHtmlToPng(
   html: string,
   width: number,
@@ -68,8 +123,6 @@ export async function renderHtmlToPng(
   try {
     await page.setViewport({ width, height, deviceScaleFactor: 1 })
     await page.setContent(html, { waitUntil: 'networkidle0' })
-
-    // Ensure all embedded fonts are decoded before screenshotting
     await page.evaluate(() => document.fonts.ready)
 
     const element = await page.$('#poster')
