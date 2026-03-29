@@ -103,7 +103,39 @@ export async function renderPageToPng(
     if (!element) throw new Error('Poster element not found')
 
     // #region agent log
-    const debugStyles = await page.evaluate(() => (window as unknown as Record<string, unknown>).__debugStyles ?? null)
+    const debugStyles = await page.evaluate(() => {
+      function getElDebug(selector: string) {
+        const el = document.querySelector(`[data-debug="${selector}"]`) as HTMLElement | null
+        if (!el) return { selector, error: 'not found' }
+        const cs = getComputedStyle(el)
+        const firstSpan = el.querySelector('span') as HTMLElement | null
+        const spanCs = firstSpan ? getComputedStyle(firstSpan) : null
+        const rect = el.getBoundingClientRect()
+        return {
+          selector,
+          wrapper: { fontSize: cs.fontSize, lineHeight: cs.lineHeight, fontFamily: cs.fontFamily, fontWeight: cs.fontWeight },
+          firstSpan: spanCs ? { fontSize: spanCs.fontSize, lineHeight: spanCs.lineHeight, fontFamily: spanCs.fontFamily, fontWeight: spanCs.fontWeight, letterSpacing: spanCs.letterSpacing } : null,
+          width: Math.round(rect.width * 100) / 100,
+          height: Math.round(rect.height * 100) / 100,
+        }
+      }
+      return {
+        userAgent: navigator.userAgent,
+        fontsLoaded: {
+          manal400_63: document.fonts.check('400 63px Manal'),
+          manal700_76: document.fonts.check('700 76px Manal'),
+          manal900_76: document.fonts.check('900 76px Manal'),
+          sourceSerif700_60: document.fonts.check('700 60px "Source Serif 4"'),
+        },
+        allFontsReady: document.fonts.status,
+        headline: getElDebug('headline'),
+        bulletsContainer: getElDebug('bullets-container'),
+        bullet0: getElDebug('bullet-0'),
+        bullet1: getElDebug('bullet-1'),
+        bullet2: getElDebug('bullet-2'),
+        posterRect: (() => { const p = document.getElementById('poster'); if (!p) return null; const r = p.getBoundingClientRect(); return { w: r.width, h: r.height } })(),
+      }
+    })
     // #endregion
 
     const screenshot = await element.screenshot({ type: 'png' })
