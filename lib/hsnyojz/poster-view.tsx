@@ -432,23 +432,26 @@ export function PosterCanvas({
             marginBottom: config.sourceTag.marginBottom,
           }}
         >
-          {data.sourceLabel && (
-            <span
-              style={{
-                background: config.sourceTag.backgroundColor,
-                padding: `${config.sourceTag.paddingY}px ${config.sourceTag.paddingX}px`,
-                fontSize: config.sourceTag.fontSize,
-                fontWeight: config.sourceTag.fontWeight,
-                color: config.sourceTag.color,
-                fontFamily: "'Source Serif 4', serif",
-                letterSpacing: 1,
-                position: 'relative',
-                transform: `translate(${config.sourceTag.positionX}px, ${config.sourceTag.positionY}px)`,
-              }}
-            >
-              {data.sourceLabel.toUpperCase()}
-            </span>
-          )}
+          {data.sourceLabel && (() => {
+            const hasArabic = /[\u0600-\u06FF]/.test(data.sourceLabel)
+            return (
+              <span
+                style={{
+                  background: config.sourceTag.backgroundColor,
+                  padding: `${config.sourceTag.paddingY}px ${config.sourceTag.paddingX}px`,
+                  fontSize: config.sourceTag.fontSize,
+                  fontWeight: config.sourceTag.fontWeight,
+                  color: config.sourceTag.color,
+                  fontFamily: hasArabic ? "'Manal', 'Source Serif 4', serif" : "'Source Serif 4', 'Manal', serif",
+                  letterSpacing: hasArabic ? 0 : 1,
+                  position: 'relative',
+                  transform: `translate(${config.sourceTag.positionX}px, ${config.sourceTag.positionY}px)`,
+                }}
+              >
+                {hasArabic ? data.sourceLabel : data.sourceLabel.toUpperCase()}
+              </span>
+            )
+          })()}
           <span
             style={{
               fontSize: config.date.fontSize,
