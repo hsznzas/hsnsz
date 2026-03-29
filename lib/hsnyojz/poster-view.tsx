@@ -213,19 +213,7 @@ export function PosterCanvas({
   const bulletShadow = buildTextShadow(config.bullets.shadow)
   const iconShadowFilter = buildDropShadowFilter(config.bullets.iconShadow)
 
-  const pattern = {
-    type: 'dots' as const,
-    color: '#d0d0d0',
-    opacity: 0.3,
-    scale: 1,
-    strokeWidth: 1,
-    wavelength: 1,
-    gradientEnabled: false,
-    gradientColorEnd: '#a0a0ff',
-    gradientAngle: 180,
-    gradientMode: 'per-line' as const,
-    ...config.pattern,
-  }
+  const pattern = config.pattern
 
   const isPerLine = pattern.gradientEnabled && pattern.gradientMode === 'per-line'
   const isOverall = pattern.gradientEnabled && pattern.gradientMode === 'overall'
