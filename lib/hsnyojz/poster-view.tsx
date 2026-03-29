@@ -467,6 +467,7 @@ export function PosterCanvas({
         </div>
 
         <div
+          data-debug="headline"
           style={{
             width: '100%',
             lineHeight: hlAr.lineHeight,
@@ -500,6 +501,7 @@ export function PosterCanvas({
 
         {(data.bullets.length > 0 || data.customNotes) && (
           <div
+            data-debug="bullets-container"
             style={{
               position: 'absolute',
               top: config.bullets.anchorY,
@@ -528,6 +530,7 @@ export function PosterCanvas({
                 {data.bullets.map((bullet, index) => (
                   <div
                     key={index}
+                    data-debug={`bullet-${index}`}
                     style={{
                       display: 'flex',
                       flexDirection: 'row',

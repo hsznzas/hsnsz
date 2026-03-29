@@ -68,7 +68,7 @@ export async function renderPageToPng(
   renderData: Record<string, unknown>,
   width: number,
   height: number,
-): Promise<Buffer> {
+): Promise<{ png: Buffer; debugStyles: unknown }> {
   const browser = await getBrowser()
   const page = await browser.newPage()
 
@@ -102,8 +102,12 @@ export async function renderPageToPng(
     const element = await page.$('#poster')
     if (!element) throw new Error('Poster element not found')
 
+    // #region agent log
+    const debugStyles = await page.evaluate(() => (window as unknown as Record<string, unknown>).__debugStyles ?? null)
+    // #endregion
+
     const screenshot = await element.screenshot({ type: 'png' })
-    return Buffer.from(screenshot)
+    return { png: Buffer.from(screenshot), debugStyles }
   } finally {
     await page.close()
   }

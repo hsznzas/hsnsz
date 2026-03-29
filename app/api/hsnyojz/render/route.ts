@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const origin = getOrigin(request)
     const renderUrl = `${origin}/hsnyojz/render-image`
 
-    const pngBuffer = await renderPageToPng(
+    const result = await renderPageToPng(
       renderUrl,
       {
         config: cfg,
@@ -77,7 +77,29 @@ export async function POST(request: NextRequest) {
       cfg.canvasHeight,
     )
 
-    return new NextResponse(new Uint8Array(pngBuffer), {
+    // #region agent log
+    if (result.debugStyles) {
+      console.log('[HsnYojz Debug] Puppeteer computed styles:', JSON.stringify(result.debugStyles))
+    }
+    // #endregion
+
+    if (body.debugStyles) {
+      return NextResponse.json({
+        debugStyles: result.debugStyles,
+        configUsed: {
+          avatarPositionY: cfg.avatar?.positionY,
+          heroPositionY: cfg.hero?.positionY,
+          headlineArabicFontSize: cfg.headline?.arabic?.fontSize,
+          headlineArabicLineHeight: cfg.headline?.arabic?.lineHeight,
+          bulletsArabicFontSize: cfg.bullets?.arabic?.fontSize,
+          bulletsArabicLineHeight: cfg.bullets?.arabic?.lineHeight,
+          bulletsLineSpacingPx: cfg.bullets?.lineSpacingPx,
+          bulletsGap: cfg.bullets?.gap,
+        },
+      })
+    }
+
+    return new NextResponse(new Uint8Array(result.png), {
       headers: {
         'Content-Type': 'image/png',
         'Content-Disposition': `inline; filename="hsnyojz-${cfg.aspectRatio}.png"`,
