@@ -64,7 +64,22 @@ function MixedText({
   return (
     <>
       {segments.map((seg, i) => {
-        if (seg.lang === 'neutral') return seg.text
+        if (seg.lang === 'neutral') {
+          if (/^\s+$/.test(seg.text)) return seg.text
+          return (
+            <span
+              key={i}
+              style={{
+                fontSize: englishStyle.fontSize,
+                fontFamily: englishStyle.fontFamily,
+                fontWeight: englishStyle.fontWeight,
+                color: arabicStyle.color,
+              }}
+            >
+              {seg.text}
+            </span>
+          )
+        }
         const baseStyle = seg.lang === 'arabic' ? arabicStyle : englishStyle
         const style: CSSProperties = {
           ...baseStyle,
@@ -84,40 +99,66 @@ function MixedText({
   )
 }
 
+function svgGradientCoords(angle: number) {
+  const rad = (angle * Math.PI) / 180
+  return {
+    x1: (0.5 - 0.5 * Math.sin(rad)).toFixed(3),
+    y1: (0.5 + 0.5 * Math.cos(rad)).toFixed(3),
+    x2: (0.5 + 0.5 * Math.sin(rad)).toFixed(3),
+    y2: (0.5 - 0.5 * Math.cos(rad)).toFixed(3),
+  }
+}
+
+interface PatternGradient {
+  colorEnd: string
+  angle: number
+}
+
 export function generatePatternSvgUri(
   type: string,
   color: string,
   scale: number,
+  gradient?: PatternGradient,
+  strokeMul = 1,
+  wavelengthMul = 1,
 ): string | null {
   const enc = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg)}`
+
+  const paintRaw = gradient ? 'url(#lg)' : color
+
+  function gradDefs(): string {
+    if (!gradient) return ''
+    const g = svgGradientCoords(gradient.angle)
+    return `<defs><linearGradient id="lg" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}"><stop offset="0%" stop-color="${color}"/><stop offset="100%" stop-color="${gradient.colorEnd}"/></linearGradient></defs>`
+  }
 
   switch (type) {
     case 'dots': {
       const s = Math.round(20 * scale)
-      const r = Math.max(1.5, s * 0.1)
+      const r = Math.max(0.5, s * 0.1 * strokeMul)
       return enc(
-        `<svg width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg"><circle cx="${s / 2}" cy="${s / 2}" r="${r}" fill="${color}"/></svg>`,
+        `<svg width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg">${gradDefs()}<circle cx="${s / 2}" cy="${s / 2}" r="${r}" fill="${paintRaw}"/></svg>`,
       )
     }
     case 'waves': {
-      const w = Math.round(100 * scale)
+      const w = Math.round(100 * scale * wavelengthMul)
       const h = Math.round(20 * scale)
       const mid = h / 2
-      const sw = Math.max(0.8, scale * 1)
+      const sw = Math.max(0.3, scale * 1 * strokeMul)
       return enc(
-        `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg"><path d="M0 ${mid} Q${w / 4} 0 ${w / 2} ${mid} Q${(w * 3) / 4} ${h} ${w} ${mid}" fill="none" stroke="${color}" stroke-width="${sw}"/></svg>`,
+        `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${gradDefs()}<path d="M0 ${mid} Q${w / 4} 0 ${w / 2} ${mid} Q${(w * 3) / 4} ${h} ${w} ${mid}" fill="none" stroke="${paintRaw}" stroke-width="${sw}"/></svg>`,
       )
     }
     case 'topography': {
-      const w = Math.round(200 * scale)
+      const w = Math.round(200 * scale * wavelengthMul)
       const h = Math.round(120 * scale)
-      const sw = Math.max(0.5, scale * 0.8)
+      const sw = Math.max(0.3, scale * 0.8 * strokeMul)
       return enc(
-        `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">` +
-          `<path d="M0 ${h * 0.12} C${w * 0.15} ${h * 0.02} ${w * 0.35} ${h * 0.28} ${w * 0.5} ${h * 0.14} C${w * 0.65} 0 ${w * 0.85} ${h * 0.22} ${w} ${h * 0.12}" fill="none" stroke="${color}" stroke-width="${sw}"/>` +
-          `<path d="M0 ${h * 0.38} C${w * 0.12} ${h * 0.28} ${w * 0.28} ${h * 0.48} ${w * 0.48} ${h * 0.35} C${w * 0.68} ${h * 0.22} ${w * 0.88} ${h * 0.45} ${w} ${h * 0.38}" fill="none" stroke="${color}" stroke-width="${sw}"/>` +
-          `<path d="M0 ${h * 0.62} C${w * 0.18} ${h * 0.5} ${w * 0.38} ${h * 0.72} ${w * 0.55} ${h * 0.58} C${w * 0.72} ${h * 0.44} ${w * 0.9} ${h * 0.68} ${w} ${h * 0.62}" fill="none" stroke="${color}" stroke-width="${sw}"/>` +
-          `<path d="M0 ${h * 0.88} C${w * 0.14} ${h * 0.76} ${w * 0.32} ${h * 0.95} ${w * 0.52} ${h * 0.84} C${w * 0.72} ${h * 0.73} ${w * 0.86} ${h * 0.92} ${w} ${h * 0.88}" fill="none" stroke="${color}" stroke-width="${sw}"/>` +
+        `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${gradDefs()}` +
+          `<path d="M0 ${h * 0.12} C${w * 0.15} ${h * 0.02} ${w * 0.35} ${h * 0.28} ${w * 0.5} ${h * 0.14} C${w * 0.65} 0 ${w * 0.85} ${h * 0.22} ${w} ${h * 0.12}" fill="none" stroke="${paintRaw}" stroke-width="${sw}"/>` +
+          `<path d="M0 ${h * 0.38} C${w * 0.12} ${h * 0.28} ${w * 0.28} ${h * 0.48} ${w * 0.48} ${h * 0.35} C${w * 0.68} ${h * 0.22} ${w * 0.88} ${h * 0.45} ${w} ${h * 0.38}" fill="none" stroke="${paintRaw}" stroke-width="${sw}"/>` +
+          `<path d="M0 ${h * 0.62} C${w * 0.18} ${h * 0.5} ${w * 0.38} ${h * 0.72} ${w * 0.55} ${h * 0.58} C${w * 0.72} ${h * 0.44} ${w * 0.9} ${h * 0.68} ${w} ${h * 0.62}" fill="none" stroke="${paintRaw}" stroke-width="${sw}"/>` +
+          `<path d="M0 ${h * 0.88} C${w * 0.14} ${h * 0.76} ${w * 0.32} ${h * 0.95} ${w * 0.52} ${h * 0.84} C${w * 0.72} ${h * 0.73} ${w * 0.86} ${h * 0.92} ${w} ${h * 0.88}" fill="none" stroke="${paintRaw}" stroke-width="${sw}"/>` +
           `</svg>`,
       )
     }
@@ -125,9 +166,9 @@ export function generatePatternSvgUri(
       const s = Math.round(24 * scale)
       const c = s / 2
       const arm = s * 0.22
-      const sw = Math.max(0.5, scale * 0.7)
+      const sw = Math.max(0.3, scale * 0.7 * strokeMul)
       return enc(
-        `<svg width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg"><line x1="${c}" y1="${c - arm}" x2="${c}" y2="${c + arm}" stroke="${color}" stroke-width="${sw}"/><line x1="${c - arm}" y1="${c}" x2="${c + arm}" y2="${c}" stroke="${color}" stroke-width="${sw}"/></svg>`,
+        `<svg width="${s}" height="${s}" xmlns="http://www.w3.org/2000/svg">${gradDefs()}<line x1="${c}" y1="${c - arm}" x2="${c}" y2="${c + arm}" stroke="${paintRaw}" stroke-width="${sw}"/><line x1="${c - arm}" y1="${c}" x2="${c + arm}" y2="${c}" stroke="${paintRaw}" stroke-width="${sw}"/></svg>`,
       )
     }
     default:
@@ -170,29 +211,58 @@ export function PosterCanvas({
   const bulletShadow = buildTextShadow(config.bullets.shadow)
   const iconShadowFilter = buildDropShadowFilter(config.bullets.iconShadow)
 
-  const pattern = config.pattern ?? {
-    type: 'dots',
+  const pattern = {
+    type: 'dots' as const,
     color: '#d0d0d0',
     opacity: 0.3,
     scale: 1,
+    strokeWidth: 1,
+    wavelength: 1,
+    gradientEnabled: false,
+    gradientColorEnd: '#a0a0ff',
+    gradientAngle: 180,
+    gradientMode: 'per-line' as const,
+    ...config.pattern,
   }
+
+  const isPerLine = pattern.gradientEnabled && pattern.gradientMode === 'per-line'
+  const isOverall = pattern.gradientEnabled && pattern.gradientMode === 'overall'
+  const swMul = pattern.strokeWidth ?? 1
+  const wlMul = pattern.wavelength ?? 1
+
   const patternUri =
     pattern.type !== 'none'
-      ? generatePatternSvgUri(pattern.type, pattern.color, pattern.scale)
+      ? generatePatternSvgUri(
+          pattern.type,
+          pattern.color,
+          pattern.scale,
+          isPerLine ? { colorEnd: pattern.gradientColorEnd, angle: pattern.gradientAngle } : undefined,
+          swMul,
+          wlMul,
+        )
       : null
 
+  const patternMaskUri =
+    isOverall && pattern.type !== 'none'
+      ? generatePatternSvgUri(pattern.type, '#ffffff', pattern.scale, undefined, swMul, wlMul)
+      : null
+
+  const bgGrad = config.backgroundGradient ?? { enabled: false, colorEnd: '#e8e8e8', angle: 180 }
+  const bgStyle: React.CSSProperties = {
+    width: config.canvasWidth,
+    height: config.canvasHeight,
+    position: 'relative' as const,
+    fontFamily: "'Manal', 'Source Serif 4', serif",
+  }
+  if (bgGrad.enabled) {
+    bgStyle.background = `linear-gradient(${bgGrad.angle}deg, ${config.backgroundColor}, ${bgGrad.colorEnd})`
+  } else {
+    bgStyle.backgroundColor = config.backgroundColor
+  }
+
   return (
-    <div
-      id={rootId}
-      style={{
-        width: config.canvasWidth,
-        height: config.canvasHeight,
-        backgroundColor: config.backgroundColor,
-        position: 'relative',
-        fontFamily: "'Manal', 'Source Serif 4', serif",
-      }}
-    >
-      {patternUri && (
+    <div id={rootId} style={bgStyle}>
+      {patternUri && !isOverall && (
         <div
           style={{
             position: 'absolute',
@@ -204,6 +274,25 @@ export function PosterCanvas({
             backgroundRepeat: 'repeat',
             opacity: pattern.opacity,
           }}
+        />
+      )}
+      {patternMaskUri && isOverall && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: `linear-gradient(${pattern.gradientAngle}deg, ${pattern.color}, ${pattern.gradientColorEnd})`,
+            WebkitMaskImage: `url("${patternMaskUri}")`,
+            WebkitMaskRepeat: 'repeat',
+            WebkitMaskSize: 'auto',
+            maskImage: `url("${patternMaskUri}")`,
+            maskRepeat: 'repeat',
+            maskSize: 'auto',
+            opacity: pattern.opacity,
+          } as React.CSSProperties}
         />
       )}
 

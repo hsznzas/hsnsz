@@ -31,7 +31,7 @@ export function splitByLanguage(text: string): TextSegment[] {
     [
       '\\s+',
       `[${arabicSource}]+`,
-      '[A-Za-z0-9]+(?:[.,:%/+\\-][A-Za-z0-9]+)*',
+      '[$€£¥₹]?[A-Za-z0-9]+(?:[.,:%/+\\-][A-Za-z0-9]+)*[%$€£¥₹]?',
       '.',
     ].join('|'),
     'g',
