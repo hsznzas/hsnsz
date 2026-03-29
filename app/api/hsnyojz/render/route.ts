@@ -31,13 +31,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const activeConfig = await getActiveConfig()
-    const ratio = aspectRatio || userConfig?.aspectRatio || activeConfig.aspectRatio || '9:16'
-    const baseConfig =
-      ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : activeConfig
-    const cfg: PosterDesignConfig = userConfig
-      ? deepMergeConfig(baseConfig, userConfig)
-      : { ...baseConfig }
+    const ratio = aspectRatio || userConfig?.aspectRatio || '9:16'
+    let cfg: PosterDesignConfig
+    if (userConfig) {
+      const base = ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : DEFAULT_POSTER_CONFIG
+      cfg = deepMergeConfig(base, userConfig)
+    } else {
+      const activeConfig = await getActiveConfig()
+      const base = ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : activeConfig
+      cfg = { ...base }
+    }
 
     let resolvedFlagBase64 = providedFlagBase64 || null
     if (!resolvedFlagBase64 && flagEmoji && avatarBase64) {

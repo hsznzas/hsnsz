@@ -6,7 +6,7 @@ import {
 
 let cachedConfig: PosterDesignConfig | null = null
 let cacheTimestamp = 0
-const CACHE_TTL_MS = 60_000
+const CACHE_TTL_MS = 5_000
 
 export function invalidateConfigCache() {
   cachedConfig = null
