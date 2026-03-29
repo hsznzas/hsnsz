@@ -163,9 +163,6 @@ async function callAnthropic(
   const data = await response.json()
   const textContent = data?.content?.[0]?.text
   if (!textContent) throw new Error('No response from Claude API')
-  // #region agent log
-  console.log('[HsnYojz Debug] Claude API response (temperature:0):', textContent.substring(0, 200))
-  // #endregion
   return textContent
 }
 

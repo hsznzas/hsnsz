@@ -919,51 +919,6 @@ export default function PosterEditorPage() {
     }
   }
 
-  // #region agent log
-  useEffect(() => {
-    if (!loaded || !captureRef916.current) return
-    const timer = setTimeout(() => {
-      document.fonts.ready.then(() => {
-        const container = captureRef916.current
-        if (!container) return
-        function getElDebug(selector: string) {
-          const el = container!.querySelector(`[data-debug="${selector}"]`) as HTMLElement | null
-          if (!el) return { selector, error: 'not found' }
-          const cs = getComputedStyle(el)
-          const firstSpan = el.querySelector('span') as HTMLElement | null
-          const spanCs = firstSpan ? getComputedStyle(firstSpan) : null
-          const rect = el.getBoundingClientRect()
-          return {
-            selector,
-            wrapper: { fontSize: cs.fontSize, lineHeight: cs.lineHeight, fontFamily: cs.fontFamily, fontWeight: cs.fontWeight },
-            firstSpan: spanCs ? { fontSize: spanCs.fontSize, lineHeight: spanCs.lineHeight, fontFamily: spanCs.fontFamily, fontWeight: spanCs.fontWeight, letterSpacing: spanCs.letterSpacing } : null,
-            width: Math.round(rect.width * 100) / 100,
-            height: Math.round(rect.height * 100) / 100,
-          }
-        }
-        const debugData = {
-          source: 'editor',
-          userAgent: navigator.userAgent,
-          fontsLoaded: {
-            manal400_63: document.fonts.check('400 63px Manal'),
-            manal700_76: document.fonts.check('700 76px Manal'),
-            manal900_76: document.fonts.check('900 76px Manal'),
-            sourceSerif700_60: document.fonts.check('700 60px "Source Serif 4"'),
-          },
-          allFontsReady: document.fonts.status,
-          headline: getElDebug('headline'),
-          bulletsContainer: getElDebug('bullets-container'),
-          bullet0: getElDebug('bullet-0'),
-          bullet1: getElDebug('bullet-1'),
-          bullet2: getElDebug('bullet-2'),
-        }
-        fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'21346a'},body:JSON.stringify({sessionId:'21346a',location:'edit/page.tsx:debugCapture',message:'Editor computed styles',data:debugData,timestamp:Date.now(),hypothesisId:'H1-H5'})}).catch(()=>{});
-      })
-    }, 3000)
-    return () => clearTimeout(timer)
-  }, [loaded, config, sampleData, testImage, testAvatar, flagDataUrl])
-  // #endregion
-
   useEffect(() => {
     if (!flagCode) { setFlagDataUrl(null); return }
     let cancelled = false

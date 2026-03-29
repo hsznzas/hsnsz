@@ -16,7 +16,6 @@ declare global {
   interface Window {
     __pageReady?: boolean
     __setPosterData?: (data: RenderData) => void
-    __debugStyles?: Record<string, unknown>
   }
 }
 
@@ -25,46 +24,6 @@ export default function RenderImagePage() {
 
   const setPosterData = useCallback((data: RenderData) => {
     setRenderData(data)
-    // #region agent log
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      function getElDebug(selector: string) {
-        const el = document.querySelector(`[data-debug="${selector}"]`) as HTMLElement | null
-        if (!el) return { selector, error: 'not found' }
-        const cs = getComputedStyle(el)
-        const rect = el.getBoundingClientRect()
-        return {
-          selector,
-          fontSize: cs.fontSize,
-          lineHeight: cs.lineHeight,
-          fontFamily: cs.fontFamily,
-          fontWeight: cs.fontWeight,
-          letterSpacing: cs.letterSpacing,
-          width: Math.round(rect.width * 100) / 100,
-          height: Math.round(rect.height * 100) / 100,
-        }
-      }
-      window.__debugStyles = {
-        userAgent: navigator.userAgent,
-        fonts: {
-          manal400: document.fonts.check('400 63px Manal'),
-          manal700: document.fonts.check('700 76px Manal'),
-          manal900: document.fonts.check('900 76px Manal'),
-          sourceSerif700: document.fonts.check('700 60px "Source Serif 4"'),
-        },
-        headline: getElDebug('headline'),
-        bulletsContainer: getElDebug('bullets-container'),
-        bullet0: getElDebug('bullet-0'),
-        bullet1: getElDebug('bullet-1'),
-        bullet2: getElDebug('bullet-2'),
-        posterRect: (() => {
-          const p = document.getElementById('poster')
-          if (!p) return null
-          const r = p.getBoundingClientRect()
-          return { width: r.width, height: r.height }
-        })(),
-      }
-    }))
-    // #endregion
   }, [])
 
   useEffect(() => {
