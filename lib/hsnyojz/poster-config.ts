@@ -19,11 +19,25 @@ export interface ShadowConfig {
 
 export type PatternType = 'none' | 'dots' | 'waves' | 'topography' | 'cross-dots'
 
+export type PatternGradientMode = 'per-line' | 'overall'
+
 export interface PatternConfig {
   type: PatternType
   color: string
   opacity: number
   scale: number
+  strokeWidth: number
+  wavelength: number
+  gradientEnabled: boolean
+  gradientColorEnd: string
+  gradientAngle: number
+  gradientMode: PatternGradientMode
+}
+
+export interface BackgroundGradientConfig {
+  enabled: boolean
+  colorEnd: string
+  angle: number
 }
 
 export interface PosterDesignConfig {
@@ -31,6 +45,7 @@ export interface PosterDesignConfig {
   canvasWidth: number
   canvasHeight: number
   backgroundColor: string
+  backgroundGradient: BackgroundGradientConfig
   pattern: PatternConfig
 
   hero: {
@@ -182,22 +197,33 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
   aspectRatio: '9:16',
   canvasWidth: 1080,
   canvasHeight: 1920,
-  backgroundColor: '#fafafa',
+  backgroundColor: '#f7f7f7',
+  backgroundGradient: {
+    enabled: false,
+    colorEnd: '#e8e8e8',
+    angle: 180,
+  },
   pattern: {
     type: 'waves',
-    color: '#d0d0d0',
-    opacity: 0.3,
-    scale: 1,
+    color: '#ffffff',
+    opacity: 0.48,
+    scale: 0.9,
+    strokeWidth: 1.9,
+    wavelength: 1.7,
+    gradientEnabled: true,
+    gradientColorEnd: '#aaa6c9',
+    gradientAngle: 0,
+    gradientMode: 'overall',
   },
 
   hero: {
-    heightPercent: 39,
+    heightPercent: 37,
     style: 'glass-refraction',
     glass: {
       innerCircleSizePx: 382,
-      outerCircleSizePx: 434,
-      blurAmount: 10,
-      opacity: 0.3,
+      outerCircleSizePx: 452,
+      blurAmount: 28,
+      opacity: 0.63,
     },
     plain: {
       imageWidthPercent: 88,
@@ -325,7 +351,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
     iconSize: 66,
     iconColor: '#3d4b7f',
     iconOffsetX: 7,
-    iconOffsetY: 16,
+    iconOffsetY: -1,
     paddingRight: -21,
     marginBottom: 43,
     dotSize: 10,
