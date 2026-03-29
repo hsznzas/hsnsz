@@ -26,7 +26,7 @@ import {
   type SummarizeOptions,
 } from '@/lib/hsnyojz/summarizer'
 import { resolveAvatar } from '@/lib/hsnyojz/avatars'
-import { generateImage } from '@/lib/hsnyojz/image-gen'
+import { generateImage, type ImageGenErrorType } from '@/lib/hsnyojz/image-gen'
 import { getSupabase } from '@/lib/supabase/client'
 import { getActiveDesignConfig } from '@/lib/hsnyojz/active-config'
 
@@ -259,6 +259,20 @@ function flagSubKeyboard(draftId: string, currentFlag: string | null): InlineKey
   ]
 }
 
+function avatarSubKeyboard(draft: DraftRow): InlineKeyboardButton[][] {
+  const avatarLabel = draft.avatar_entity_name || '—'
+  const flagLabel = draft.flag_emoji || '—'
+  return [
+    [{ text: `✍️ تعديل الأفاتار: ${avatarLabel}`, callback_data: `hsnyojz:avatar_set:${draft.id}` }],
+    [
+      { text: `🏳️ اختيار العلم: ${flagLabel}`, callback_data: `hsnyojz:flag:${draft.id}` },
+      { text: '🚫 حذف العلم', callback_data: `hsnyojz:setflag:none:${draft.id}` },
+    ],
+    [{ text: '🚫 حذف الأفاتار', callback_data: `hsnyojz:avatar_clear:${draft.id}` }],
+    [{ text: '↩️ رجوع', callback_data: `hsnyojz:back:${draft.id}` }],
+  ]
+}
+
 function bulletEditSubKeyboard(draftId: string, bullets: string[]): InlineKeyboardButton[][] {
   const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣']
   const rows: InlineKeyboardButton[][] = bullets.map((b, i) => [
@@ -291,6 +305,9 @@ function buildPreviewText(draft: DraftRow): string {
   if (draft.avatar_entity_name) {
     avatarStatus = draft.avatar_entity_name
   }
+  const flagStatus = draft.avatar_entity_name
+    ? (draft.flag_emoji || '—')
+    : (draft.flag_emoji ? `${draft.flag_emoji} (مخفي بدون أفاتار)` : '—')
 
   const lines = [
     `📰 <b>العنوان:</b>`,
@@ -304,7 +321,7 @@ function buildPreviewText(draft: DraftRow): string {
     `🔢 النقاط: ${draft.bullet_count}`,
     `🖼 صورة: ${hasImage}`,
     `🏷 أفاتار: ${avatarStatus}`,
-    `🏳️ علم: ${draft.flag_emoji || '—'}`,
+    `🏳️ علم: ${flagStatus}`,
     `📝 ملاحظة: ${draft.custom_notes || '—'}`,
   ]
 
@@ -772,10 +789,10 @@ async function handlePendingAction(
 
     try {
       const result = await generateImage(text.trim(), draft.summary_headline || '')
-      if (result) {
-        await updateDraft(draft.id, { hero_image_base64: result } as Partial<DraftRow>)
+      if (result.image) {
+        await updateDraft(draft.id, { hero_image_base64: result.image } as Partial<DraftRow>)
       } else {
-        await sendMessage(chatId, '❌ تعذر توليد الصورة. حاول وصفاً مختلفاً.')
+        await sendMessage(chatId, imageGenErrorMessage(result.errorType))
       }
     } catch (err) {
       console.error('[HsnYojz] Image gen failed:', err)
@@ -909,8 +926,34 @@ async function handleCallback(update: TelegramUpdate, request: NextRequest) {
       break
 
     case 'avatar':
+      if (previewMsgId) {
+        const text = buildPreviewText(draft) + '\n\n🏷 إدارة الأفاتار والعلم:'
+        await editMessageText(chatId, previewMsgId, text, avatarSubKeyboard(draft))
+      }
+      break
+
+    case 'avatar_set':
       await updateDraft(draftId, { pending_action: 'awaiting_avatar_name' } as Partial<DraftRow>)
       await sendMessage(chatId, 'اكتب اسم الشخص أو الشركة (مثل: Elon, Tesla, Apple)...')
+      break
+
+    case 'avatar_clear':
+      await updateDraft(draftId, {
+        avatar_entity_name: null,
+        avatar_entity_org: null,
+        pending_action: null,
+      } as Partial<DraftRow>)
+      {
+        const updated = await getDraft(draftId)
+        if (updated && previewMsgId) await refreshPreview(updated, chatId, previewMsgId)
+      }
+      break
+
+    case 'flag':
+      if (previewMsgId) {
+        const text = buildPreviewText(draft) + '\n\n🏳️ اختر العلم:'
+        await editMessageText(chatId, previewMsgId, text, flagSubKeyboard(draftId, draft.flag_emoji))
+      }
       break
 
     case 'setflag': {
@@ -1053,6 +1096,22 @@ async function handleApprove(
 
 export async function GET() {
   return NextResponse.json({ status: 'HsnYojz webhook is active' })
+}
+
+function imageGenErrorMessage(errorType?: ImageGenErrorType): string {
+  switch (errorType) {
+    case 'key_missing':
+    case 'key_invalid':
+      return '❌ مفتاح Gemini غير صالح أو مفقود. تحقق من إعدادات السيرفر.'
+    case 'safety_blocked':
+      return '❌ تم حظر الصورة بسبب سياسة الأمان. حاول وصفاً مختلفاً بدون أشخاص حقيقيين.'
+    case 'quota_exceeded':
+      return '❌ تم تجاوز حد الاستخدام. حاول مرة أخرى لاحقاً.'
+    case 'network_error':
+      return '❌ خطأ في الاتصال بخدمة Google. حاول مرة أخرى.'
+    default:
+      return '❌ تعذر توليد الصورة. حاول وصفاً مختلفاً.'
+  }
 }
 
 function getBaseUrl(request: NextRequest): string {

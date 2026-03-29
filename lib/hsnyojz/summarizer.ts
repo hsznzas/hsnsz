@@ -76,10 +76,27 @@ const ENTITY_DETECTION_PROMPT = `
 - أخبار عالمية بدون دولة محددة: null
 - بيتكوين/كريبتو: null`
 
+const CONTEXT_GROUNDING_PROMPT = `
+═══ فهم السياق ═══
+لا تكتفِ بالتلخيص الحرفي للنص. حاول فهم السياق الأوسع للخبر: ما الذي يعنيه الحدث، ولماذا يهم، وما الخلفية القريبة اللازمة لفهمه.
+
+إذا كانت لديك قدرة فعلية على البحث أو التحقق الخارجي، استخدمها بشكل خفيف جداً فقط لتثبيت السياق العام أو إزالة الالتباس، وليس لإعادة كتابة الخبر من الصفر.
+
+إذا لم تكن لديك قدرة فعلية على التحقق الخارجي، فاعتمد فقط على:
+1. النص والمصدر المرسل لك
+2. معرفتك العامة السابقة
+
+في جميع الحالات:
+- لا تخترع أي معلومة غير مذكورة أو غير مؤكدة
+- لا تضف "سياقاً" يبدو حديثاً أو آنيّاً إلا إذا كنت متأكداً منه
+- إذا كان السياق غير واضح، التزم بالخبر نفسه وقدّم أفضل فهم تحليلي محافظ
+- الهدف: ملخص يفهم الخبر ضمن معناه، لا مجرد اختصار حرفي للجمل`
+
 function buildSystemPrompt(basePrompt: string, options?: SummarizeOptions): string {
   let prompt = basePrompt
 
   prompt += '\n\n' + ENTITY_DETECTION_PROMPT
+  prompt += '\n\n' + CONTEXT_GROUNDING_PROMPT
 
   const bulletCount = options?.bulletCount ?? 3
   const bulletInstruction = BULLET_INSTRUCTIONS[bulletCount] ?? BULLET_INSTRUCTIONS[3]

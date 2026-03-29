@@ -46,6 +46,11 @@ function buildTextShadow(shadow: ShadowConfig): string | undefined {
   return `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${withOpacity(shadow.color, shadow.opacity)}`
 }
 
+function buildDropShadowFilter(shadow: ShadowConfig): string | undefined {
+  if (shadow.opacity <= 0) return undefined
+  return `drop-shadow(${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blur}px ${withOpacity(shadow.color, shadow.opacity)})`
+}
+
 function MixedText({
   text,
   arabicStyle,
@@ -60,15 +65,17 @@ function MixedText({
     <>
       {segments.map((seg, i) => {
         if (seg.lang === 'neutral') return seg.text
+        const baseStyle = seg.lang === 'arabic' ? arabicStyle : englishStyle
+        const style: CSSProperties = {
+          ...baseStyle,
+          direction: seg.lang === 'arabic' ? 'rtl' : 'ltr',
+          unicodeBidi: 'isolate',
+        }
+        if (seg.lang === 'arabic') {
+          delete style.letterSpacing
+        }
         return (
-          <span
-            key={i}
-            style={{
-              ...(seg.lang === 'arabic' ? arabicStyle : englishStyle),
-              direction: seg.lang === 'arabic' ? 'rtl' : 'ltr',
-              unicodeBidi: 'isolate',
-            }}
-          >
+          <span key={i} style={style}>
             {seg.text}
           </span>
         )
@@ -145,6 +152,8 @@ export function PosterCanvas({
   showDimensionsBadge?: boolean
   rootId?: string
 }) {
+  const bulletIconSrc =
+    '/samples/backhand-index-pointing-left_medium-light-skin-tone_1f448-1f3fc_1f3fc.png'
   const heroHeight = Math.round(
     (config.hero.heightPercent / 100) * config.canvasHeight,
   )
@@ -159,7 +168,7 @@ export function PosterCanvas({
   const bulletEnglishLineHeight = `calc(${blEn.lineHeight}em + ${config.bullets.lineSpacingPx}px)`
   const headlineShadow = buildTextShadow(config.headline.shadow)
   const bulletShadow = buildTextShadow(config.bullets.shadow)
-  const iconShadow = buildTextShadow(config.bullets.iconShadow)
+  const iconShadowFilter = buildDropShadowFilter(config.bullets.iconShadow)
 
   const pattern = config.pattern ?? {
     type: 'dots',
@@ -502,19 +511,18 @@ export function PosterCanvas({
                         justifyContent: 'center',
                       }}
                     >
-                      <span
+                      <img
+                        src={bulletIconSrc}
+                        alt=""
                         style={{
-                          fontSize: config.bullets.iconSize,
-                          color: config.bullets.iconColor,
-                          lineHeight: bulletArabicLineHeight,
-                          fontFamily: "'Manal', sans-serif",
+                          width: config.bullets.iconSize,
+                          height: config.bullets.iconSize,
+                          objectFit: 'contain',
                           marginLeft: config.bullets.iconOffsetX,
                           marginTop: config.bullets.iconOffsetY,
-                          textShadow: iconShadow,
+                          filter: iconShadowFilter,
                         }}
-                      >
-                        {config.bullets.iconSymbol}
-                      </span>
+                      />
                     </div>
                     <div
                       style={{

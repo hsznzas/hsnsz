@@ -8,6 +8,9 @@ export interface TextSegment {
   lang: 'arabic' | 'english' | 'neutral'
 }
 
+const INVISIBLE_BETWEEN_ARABIC =
+  /[\u200B\u200C\u200D\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g
+
 /**
  * Split mixed Arabic/English text into renderable tokens.
  * Split on script changes too, so strings like "الـ11" render
@@ -15,6 +18,7 @@ export interface TextSegment {
  * keeping grouped numbers like "5,800" or "SAR 2,976" intact.
  */
 export function splitByLanguage(text: string): TextSegment[] {
+  const cleaned = text.replace(INVISIBLE_BETWEEN_ARABIC, '')
   const arabicSource = ARABIC_CHAR.source.replace(/^\[|\]$/g, '')
   const tokenRe = new RegExp(
     [
@@ -26,7 +30,7 @@ export function splitByLanguage(text: string): TextSegment[] {
     'g',
   )
 
-  const tokens = text.match(tokenRe) || []
+  const tokens = cleaned.match(tokenRe) || []
   return tokens.map((token) => {
     if (/^\s+$/.test(token)) {
       return { text: token, lang: 'neutral' as const }
