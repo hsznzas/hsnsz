@@ -5,6 +5,7 @@ import {
   DEFAULT_POSTER_CONFIG,
   DEFAULT_POSTER_CONFIG_4x5,
 } from '@/lib/hsnyojz/poster-config'
+import { getActiveConfig } from '@/lib/hsnyojz/active-config'
 import { renderPageToPng } from '@/lib/hsnyojz/puppeteer'
 
 export const maxDuration = 30
@@ -30,9 +31,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const ratio = aspectRatio || userConfig?.aspectRatio || '9:16'
+    const activeConfig = await getActiveConfig()
+    const ratio = aspectRatio || userConfig?.aspectRatio || activeConfig.aspectRatio || '9:16'
     const baseConfig =
-      ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : DEFAULT_POSTER_CONFIG
+      ratio === '4:5' ? DEFAULT_POSTER_CONFIG_4x5 : activeConfig
     const cfg: PosterDesignConfig = userConfig
       ? deepMergeConfig(baseConfig, userConfig)
       : { ...baseConfig }

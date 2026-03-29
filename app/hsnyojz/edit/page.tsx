@@ -772,6 +772,35 @@ export default function PosterEditorPage() {
     loadPresets()
   }
 
+  async function activatePreset() {
+    const supabase = getSupabase()
+    if (!supabase) return
+    const presetName = `Active — ${new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    const { data: inserted, error: insertError } = await supabase
+      .from('poster_presets')
+      .insert({
+        name: presetName,
+        config: config as unknown as Record<string, unknown>,
+        aspect_ratio: config.aspectRatio,
+      })
+      .select('id')
+      .single()
+    if (insertError || !inserted) {
+      alert('Failed to save preset')
+      return
+    }
+    await supabase
+      .from('poster_presets')
+      .update({ is_active: false })
+      .neq('id', inserted.id)
+    await supabase
+      .from('poster_presets')
+      .update({ is_active: true })
+      .eq('id', inserted.id)
+    loadPresets()
+    alert('✅ التصميم أصبح مباشراً — The design is now live!')
+  }
+
   function loadPreset(preset: Preset) {
     setConfig(preset.config)
   }
@@ -1003,6 +1032,12 @@ export default function PosterEditorPage() {
                 className="text-[11px] px-3 py-1.5 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors"
               >
                 Save Preset
+              </button>
+              <button
+                onClick={activatePreset}
+                className="text-[11px] px-3 py-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
+              >
+                🟢 تفعيل
               </button>
               {presets.length > 0 && (
                 <select

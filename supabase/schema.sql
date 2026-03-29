@@ -287,3 +287,5 @@ CREATE TRIGGER update_poster_presets_updated_at
     BEFORE UPDATE ON poster_presets
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE poster_presets ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT false;
