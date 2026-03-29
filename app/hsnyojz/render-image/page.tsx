@@ -79,14 +79,14 @@ export default function RenderImagePage() {
   return (
     <>
       <style>{`
-        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-light.ttf') format('truetype'); font-weight: 300; font-style: normal; }
-        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-medium.ttf') format('truetype'); font-weight: 400; font-style: normal; }
-        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
-        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-black.ttf') format('truetype'); font-weight: 900; font-style: normal; }
-        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-regular.ttf') format('truetype'); font-weight: 400; font-style: normal; }
-        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-semibold.ttf') format('truetype'); font-weight: 600; font-style: normal; }
-        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; }
-        @font-face { font-family: 'Rawasi Arabic'; src: url('/fonts/itfRawasiArabic-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; }
+        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-light.ttf') format('truetype'); font-weight: 300; font-style: normal; ascent-override: 53.71%; descent-override: 24.41%; line-gap-override: 2.88%; }
+        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-medium.ttf') format('truetype'); font-weight: 400; font-style: normal; ascent-override: 52.93%; descent-override: 41.46%; line-gap-override: 2.88%; }
+        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; ascent-override: 52.93%; descent-override: 41.46%; line-gap-override: 2.88%; }
+        @font-face { font-family: 'Manal'; src: url('/fonts/ah-manal-black.ttf') format('truetype'); font-weight: 900; font-style: normal; ascent-override: 52.93%; descent-override: 41.46%; line-gap-override: 2.88%; }
+        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-regular.ttf') format('truetype'); font-weight: 400; font-style: normal; ascent-override: 103.6%; descent-override: 33.5%; line-gap-override: 0%; }
+        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-semibold.ttf') format('truetype'); font-weight: 600; font-style: normal; ascent-override: 103.6%; descent-override: 33.5%; line-gap-override: 0%; }
+        @font-face { font-family: 'Source Serif 4'; src: url('/fonts/source-serif-4-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; ascent-override: 103.6%; descent-override: 33.5%; line-gap-override: 0%; }
+        @font-face { font-family: 'Rawasi Arabic'; src: url('/fonts/itfRawasiArabic-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; ascent-override: 96%; descent-override: 57.33%; line-gap-override: 0%; }
       `}</style>
 
       {renderData ? (
