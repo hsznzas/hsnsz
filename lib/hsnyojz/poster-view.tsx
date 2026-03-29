@@ -440,7 +440,7 @@ export function PosterCanvas({
                   background: config.sourceTag.backgroundColor,
                   padding: `${config.sourceTag.paddingY}px ${config.sourceTag.paddingX}px`,
                   fontSize: config.sourceTag.fontSize,
-                  fontWeight: config.sourceTag.fontWeight,
+                  fontWeight: hasArabic ? 700 : config.sourceTag.fontWeight,
                   color: config.sourceTag.color,
                   fontFamily: hasArabic ? "'Manal', 'Source Serif 4', serif" : "'Source Serif 4', 'Manal', serif",
                   letterSpacing: hasArabic ? 0 : 1,
