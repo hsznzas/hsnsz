@@ -7,6 +7,7 @@ export interface FontStyleConfig {
 
 export interface HeadlineFontConfig extends FontStyleConfig {
   letterSpacing: number
+  wordSpacing: number
 }
 
 export interface ShadowConfig {
@@ -291,6 +292,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
       fontWeight: 700,
       lineHeight: 1.05,
       letterSpacing: -1,
+      wordSpacing: 0,
       color: '#000000',
     },
     english: {
@@ -298,6 +300,7 @@ export const DEFAULT_POSTER_CONFIG: PosterDesignConfig = {
       fontWeight: 700,
       lineHeight: 1.25,
       letterSpacing: -1.5,
+      wordSpacing: 0,
       color: '#000000',
     },
     shadow: {

@@ -38,7 +38,7 @@ export function splitByLanguage(text: string): TextSegment[] {
   )
 
   const tokens = cleaned.match(tokenRe) || []
-  return tokens.map((token) => {
+  const raw: TextSegment[] = tokens.map((token) => {
     if (/^\s+$/.test(token)) {
       return { text: token, lang: 'neutral' as const }
     }
@@ -50,6 +50,32 @@ export function splitByLanguage(text: string): TextSegment[] {
     }
     return { text: token, lang: 'neutral' as const }
   })
+
+  const merged: TextSegment[] = []
+  let i = 0
+  while (i < raw.length) {
+    if (raw[i].lang === 'english') {
+      let combined = raw[i].text
+      let j = i + 1
+      while (j < raw.length) {
+        if (
+          raw[j].lang === 'neutral' && /^\s+$/.test(raw[j].text) &&
+          j + 1 < raw.length && raw[j + 1].lang === 'english'
+        ) {
+          combined += raw[j].text + raw[j + 1].text
+          j += 2
+        } else {
+          break
+        }
+      }
+      merged.push({ text: combined, lang: 'english' })
+      i = j
+    } else {
+      merged.push(raw[i])
+      i++
+    }
+  }
+  return merged
 }
 
 export function detectLanguage(text: string): 'arabic' | 'english' {

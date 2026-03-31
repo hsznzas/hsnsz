@@ -1320,6 +1320,7 @@ export default function PosterEditorPage() {
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }, { value: '900', label: 'Black' }]} value={String(config.headline.arabic.fontWeight)} onChange={(v) => update('headline.arabic.fontWeight', parseInt(v))} />
                 <Slider label="Line Height" value={config.headline.arabic.lineHeight} min={0.5} max={2.5} step={0.05} onChange={(v) => update('headline.arabic.lineHeight', v)} />
                 <Slider label="Letter Spacing" value={config.headline.arabic.letterSpacing} min={-10} max={10} step={0.5} onChange={(v) => update('headline.arabic.letterSpacing', v)} />
+                <Slider label="Word Spacing" value={config.headline.arabic.wordSpacing ?? 0} min={-20} max={40} step={1} onChange={(v) => update('headline.arabic.wordSpacing', v)} />
                 <ColorInput label="Color" value={config.headline.arabic.color} onChange={(v) => update('headline.arabic.color', v)} />
                 <hr className="border-slate-100" />
                 <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">English</div>
@@ -1327,6 +1328,7 @@ export default function PosterEditorPage() {
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }, { value: '900', label: 'Black' }]} value={String(config.headline.english.fontWeight)} onChange={(v) => update('headline.english.fontWeight', parseInt(v))} />
                 <Slider label="Line Height" value={config.headline.english.lineHeight} min={0.5} max={2.5} step={0.05} onChange={(v) => update('headline.english.lineHeight', v)} />
                 <Slider label="Letter Spacing" value={config.headline.english.letterSpacing} min={-10} max={10} step={0.5} onChange={(v) => update('headline.english.letterSpacing', v)} />
+                <Slider label="Word Spacing" value={config.headline.english.wordSpacing ?? 0} min={-20} max={40} step={1} onChange={(v) => update('headline.english.wordSpacing', v)} />
                 <ColorInput label="Color" value={config.headline.english.color} onChange={(v) => update('headline.english.color', v)} />
                 <hr className="border-slate-100" />
                 <Slider label="Margin Bottom" value={config.headline.marginBottom} min={-100} max={300} onChange={(v) => update('headline.marginBottom', v)} />
@@ -1356,7 +1358,7 @@ export default function PosterEditorPage() {
                 <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">Position</div>
                 <Slider label="Anchor Y" value={config.bullets.anchorY} min={-300} max={1400} onChange={(v) => update('bullets.anchorY', v)} />
                 <Slider label="Position X" value={config.bullets.positionX} min={-300} max={300} onChange={(v) => update('bullets.positionX', v)} />
-                <Slider label="Line Spacing" value={config.bullets.lineSpacingPx} min={0} max={160} onChange={(v) => update('bullets.lineSpacingPx', v)} />
+                <Slider label="Line Spacing" value={config.bullets.lineSpacingPx} min={-60} max={160} onChange={(v) => update('bullets.lineSpacingPx', v)} />
                 <Slider label="Gap" value={config.bullets.gap} min={-30} max={150} onChange={(v) => update('bullets.gap', v)} />
                 <Slider label="Margin Bottom" value={config.bullets.marginBottom} min={-80} max={150} onChange={(v) => update('bullets.marginBottom', v)} />
                 <ShadowControls
