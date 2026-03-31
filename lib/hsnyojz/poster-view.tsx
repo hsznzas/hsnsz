@@ -209,6 +209,9 @@ export function PosterCanvas({
   const p = config.hero.plain
   const bulletArabicLineHeight = `calc(${blAr.lineHeight}em + ${config.bullets.lineSpacingPx}px)`
   const bulletEnglishLineHeight = `calc(${blEn.lineHeight}em + ${config.bullets.lineSpacingPx}px)`
+  const bulletLineHeightPx = blAr.fontSize * blAr.lineHeight + config.bullets.lineSpacingPx
+  const bulletHalfLeading = (bulletLineHeightPx - blAr.fontSize) / 2
+  const iconAlignTop = bulletHalfLeading + (blAr.fontSize - config.bullets.iconSize) / 2 + config.bullets.iconOffsetY
   const headlineShadow = buildTextShadow(config.headline.shadow)
   const bulletShadow = buildTextShadow(config.bullets.shadow)
   const iconShadowFilter = buildDropShadowFilter(config.bullets.iconShadow)
@@ -554,7 +557,7 @@ export function PosterCanvas({
                           height: config.bullets.iconSize,
                           objectFit: 'contain',
                           marginLeft: config.bullets.iconOffsetX,
-                          marginTop: config.bullets.iconOffsetY,
+                          marginTop: iconAlignTop,
                           filter: iconShadowFilter,
                         }}
                       />
