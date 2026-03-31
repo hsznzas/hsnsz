@@ -234,7 +234,7 @@ function ShadowControls({
   return (
     <>
       <hr className="border-slate-100" />
-      <div className="text-[10px] font-semibold text-violet-500 uppercase tracking-wider">
+      <div className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider bg-violet-50 border border-violet-100 rounded-md px-2 py-1">
         {title}
       </div>
       <Slider
@@ -515,7 +515,7 @@ function Section({
   }
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-3" style={{ breakInside: 'avoid' }}>
       <div className={`h-1 ${meta.accentClass}`} />
       <button
         onClick={() => setOpen(!open)}
@@ -1069,9 +1069,8 @@ export default function PosterEditorPage() {
           </div>
 
           {/* Controls Grid */}
-          <div className="flex-1 overflow-auto p-4 space-y-3">
-            {/* ── Row 1 ── */}
-            <div className="grid grid-cols-3 gap-3">
+          <div className="flex-1 overflow-auto p-4">
+            <div style={{ columns: 3, columnGap: '0.75rem' }}>
               <Section title="Canvas">
                 <ColorInput
                   label="Background"
@@ -1186,7 +1185,7 @@ export default function PosterEditorPage() {
                   </>
                 )}
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-teal-500 uppercase tracking-wider">Content Area</div>
+                <div className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider bg-teal-50 border border-teal-100 rounded-md px-2 py-1">Content Area</div>
                 <Slider label="Horizontal Padding" value={config.content.paddingX} min={0} max={300} onChange={(v) => update('content.paddingX', v)} />
                 <Slider label="Content Y" value={config.content.positionY ?? 650} min={0} max={1600} onChange={(v) => update('content.positionY', v)} />
                 <SectionJsonCopy config={config} keys={['backgroundColor', 'backgroundGradient', 'pattern', 'content']} />
@@ -1248,10 +1247,7 @@ export default function PosterEditorPage() {
                 </div>
                 <SectionJsonCopy config={config} keys={['avatar', 'flag']} />
               </Section>
-            </div>
 
-            {/* ── Row 2 ── */}
-            <div className="grid grid-cols-3 gap-3">
               <Section title="Date & Source">
                 <Slider label="Date Size" value={config.date.fontSize} min={8} max={80} onChange={(v) => update('date.fontSize', v)} />
                 <ColorInput label="Date Color" value={config.date.color} onChange={(v) => update('date.color', v)} />
@@ -1274,7 +1270,7 @@ export default function PosterEditorPage() {
               </Section>
 
               <Section title="Headline">
-                <div className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">Arabic</div>
+                <div className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-md px-2 py-1">Arabic</div>
                 <Slider label="Font Size" value={config.headline.arabic.fontSize} min={20} max={160} onChange={(v) => update('headline.arabic.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }, { value: '900', label: 'Black' }]} value={String(config.headline.arabic.fontWeight)} onChange={(v) => update('headline.arabic.fontWeight', parseInt(v))} />
                 <Slider label="Line Height" value={config.headline.arabic.lineHeight} min={0.5} max={2.5} step={0.05} onChange={(v) => update('headline.arabic.lineHeight', v)} />
@@ -1282,7 +1278,7 @@ export default function PosterEditorPage() {
                 <Slider label="Word Spacing" value={config.headline.arabic.wordSpacing ?? 0} min={-20} max={40} step={1} onChange={(v) => update('headline.arabic.wordSpacing', v)} />
                 <ColorInput label="Color" value={config.headline.arabic.color} onChange={(v) => update('headline.arabic.color', v)} />
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">English</div>
+                <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-100 rounded-md px-2 py-1">English</div>
                 <Slider label="Font Size" value={config.headline.english.fontSize} min={20} max={160} onChange={(v) => update('headline.english.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }, { value: '900', label: 'Black' }]} value={String(config.headline.english.fontWeight)} onChange={(v) => update('headline.english.fontWeight', parseInt(v))} />
                 <Slider label="Line Height" value={config.headline.english.lineHeight} min={0.5} max={2.5} step={0.05} onChange={(v) => update('headline.english.lineHeight', v)} />
@@ -1304,17 +1300,17 @@ export default function PosterEditorPage() {
               </Section>
 
               <Section title="Bullets">
-                <div className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">Arabic</div>
+                <div className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-md px-2 py-1">Arabic</div>
                 <Slider label="Font Size" value={config.bullets.arabic.fontSize} min={8} max={120} onChange={(v) => update('bullets.arabic.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }]} value={String(config.bullets.arabic.fontWeight)} onChange={(v) => update('bullets.arabic.fontWeight', parseInt(v))} />
                 <ColorInput label="Color" value={config.bullets.arabic.color} onChange={(v) => update('bullets.arabic.color', v)} />
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">English</div>
+                <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-100 rounded-md px-2 py-1">English</div>
                 <Slider label="Font Size" value={config.bullets.english.fontSize} min={8} max={120} onChange={(v) => update('bullets.english.fontSize', v)} />
                 <Toggle label="Weight" options={[{ value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '700', label: 'Bold' }]} value={String(config.bullets.english.fontWeight)} onChange={(v) => update('bullets.english.fontWeight', parseInt(v))} />
                 <ColorInput label="Color" value={config.bullets.english.color} onChange={(v) => update('bullets.english.color', v)} />
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">Position</div>
+                <div className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider bg-orange-50 border border-orange-100 rounded-md px-2 py-1">Position</div>
                 <Slider label="Anchor Y" value={config.bullets.anchorY} min={-300} max={1400} onChange={(v) => update('bullets.anchorY', v)} />
                 <Slider label="Position X" value={config.bullets.positionX} min={-300} max={300} onChange={(v) => update('bullets.positionX', v)} />
                 <Slider label="Line Spacing" value={config.bullets.lineSpacingPx} min={-60} max={160} onChange={(v) => update('bullets.lineSpacingPx', v)} />
@@ -1327,7 +1323,7 @@ export default function PosterEditorPage() {
                   update={update}
                 />
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider">Symbol</div>
+                <div className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider bg-orange-50 border border-orange-100 rounded-md px-2 py-1">Symbol</div>
                 <TextInput label="Symbol" value={config.bullets.iconSymbol} onChange={(v) => update('bullets.iconSymbol', v)} />
                 <Slider label="Symbol Size" value={config.bullets.iconSize} min={8} max={120} onChange={(v) => update('bullets.iconSize', v)} />
                 <ColorInput label="Symbol Color" value={config.bullets.iconColor} onChange={(v) => update('bullets.iconColor', v)} />
@@ -1344,7 +1340,7 @@ export default function PosterEditorPage() {
                 <ColorInput label="Border Line Color" value={config.bullets.borderLineColor} onChange={(v) => update('bullets.borderLineColor', v)} />
                 <Slider label="Padding Right" value={config.bullets.paddingRight} min={-80} max={120} onChange={(v) => update('bullets.paddingRight', v)} />
                 <hr className="border-slate-100" />
-                <div className="text-[10px] font-semibold text-rose-500 uppercase tracking-wider">Notes</div>
+                <div className="text-[10px] font-semibold text-rose-600 uppercase tracking-wider bg-rose-50 border border-rose-100 rounded-md px-2 py-1">Notes</div>
                 <Slider label="Notes Font Size" value={config.notes.fontSize} min={8} max={72} onChange={(v) => update('notes.fontSize', v)} />
                 <ColorInput label="Notes Color" value={config.notes.color} onChange={(v) => update('notes.color', v)} />
                 <Slider label="Notes Line Height" value={config.notes.lineHeight} min={0.5} max={3.0} step={0.05} onChange={(v) => update('notes.lineHeight', v)} />
@@ -1352,10 +1348,7 @@ export default function PosterEditorPage() {
                 <Slider label="Notes Margin Top" value={config.notes.marginTop} min={-30} max={120} onChange={(v) => update('notes.marginTop', v)} />
                 <SectionJsonCopy config={config} keys={['bullets', 'notes']} />
               </Section>
-            </div>
 
-            {/* ── Row 3 ── */}
-            <div className="grid grid-cols-3 gap-3">
               <Section title="Brand Footer">
                 <TextInput label="Brand Text" value={config.brand.text} onChange={(v) => update('brand.text', v)} />
                 <TextInput label="Handle" value={config.brand.handle} onChange={(v) => update('brand.handle', v)} />
