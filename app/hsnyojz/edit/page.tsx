@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   type PosterDesignConfig,
   DEFAULT_POSTER_CONFIG,
-  DEFAULT_POSTER_CONFIG_4x5,
 } from '@/lib/hsnyojz/poster-config'
 import { PosterCanvas } from '@/lib/hsnyojz/poster-view'
 import { getSupabase } from '@/lib/supabase/client'
@@ -687,7 +686,6 @@ export default function PosterEditorPage() {
   const [linkError, setLinkError] = useState<string | null>(null)
 
   const captureRef916 = useRef<HTMLDivElement>(null)
-  const captureRef4x5 = useRef<HTMLDivElement>(null)
   const [exporting, setExporting] = useState<string | null>(null)
   const [flagDataUrl, setFlagDataUrl] = useState<string | null>(null)
 
@@ -935,12 +933,11 @@ export default function PosterEditorPage() {
     return () => { cancelled = true }
   }, [flagCode])
 
-  async function exportPoster(ratio: '9:16' | '4:5') {
-    const ref = ratio === '9:16' ? captureRef916 : captureRef4x5
-    if (!ref.current) return
-    setExporting(ratio)
+  async function exportPoster() {
+    if (!captureRef916.current) return
+    setExporting('9:16')
     try {
-      const blob = await toBlob(ref.current, {
+      const blob = await toBlob(captureRef916.current, {
         pixelRatio: 1,
         cacheBust: true,
         skipAutoScale: true,
@@ -948,7 +945,7 @@ export default function PosterEditorPage() {
       if (!blob) throw new Error('Capture returned empty')
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.download = `poster-${ratio.replace(':', 'x')}.png`
+      link.download = 'poster-9x16.png'
       link.href = url
       document.body.appendChild(link)
       link.click()
@@ -960,48 +957,6 @@ export default function PosterEditorPage() {
     } finally {
       setExporting(null)
     }
-  }
-
-  const config4x5: PosterDesignConfig = {
-    ...DEFAULT_POSTER_CONFIG_4x5,
-    ...config,
-    aspectRatio: '4:5',
-    canvasWidth: DEFAULT_POSTER_CONFIG_4x5.canvasWidth,
-    canvasHeight: DEFAULT_POSTER_CONFIG_4x5.canvasHeight,
-    hero: {
-      ...config.hero,
-      ...DEFAULT_POSTER_CONFIG_4x5.hero,
-      glass: {
-        ...config.hero.glass,
-        ...DEFAULT_POSTER_CONFIG_4x5.hero.glass,
-      },
-    },
-    headline: {
-      ...config.headline,
-      ...DEFAULT_POSTER_CONFIG_4x5.headline,
-      arabic: {
-        ...config.headline.arabic,
-        ...DEFAULT_POSTER_CONFIG_4x5.headline.arabic,
-      },
-      english: {
-        ...config.headline.english,
-        ...DEFAULT_POSTER_CONFIG_4x5.headline.english,
-      },
-    },
-    bullets: {
-      ...config.bullets,
-      ...DEFAULT_POSTER_CONFIG_4x5.bullets,
-      arabic: {
-        ...config.bullets.arabic,
-        ...DEFAULT_POSTER_CONFIG_4x5.bullets.arabic,
-      },
-      english: {
-        ...config.bullets.english,
-        ...DEFAULT_POSTER_CONFIG_4x5.bullets.english,
-      },
-    },
-    brand: { ...config.brand, ...DEFAULT_POSTER_CONFIG_4x5.brand },
-    content: { ...config.content, ...DEFAULT_POSTER_CONFIG_4x5.content },
   }
 
   if (!loaded) {
@@ -1400,7 +1355,7 @@ export default function PosterEditorPage() {
             </div>
 
             {/* ── Row 3 ── */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Section title="Brand Footer">
                 <TextInput label="Brand Text" value={config.brand.text} onChange={(v) => update('brand.text', v)} />
                 <TextInput label="Handle" value={config.brand.handle} onChange={(v) => update('brand.handle', v)} />
@@ -1421,116 +1376,6 @@ export default function PosterEditorPage() {
                   </>
                 )}
                 <SectionJsonCopy config={config} keys={['brand']} />
-              </Section>
-
-              <Section title="Test Link">
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex gap-1.5">
-                    <input
-                      type="url"
-                      value={testUrl}
-                      onChange={(e) => setTestUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleTestLink() }}
-                      placeholder="Paste article URL..."
-                      dir="ltr"
-                      className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                      disabled={linkLoading}
-                    />
-                    <button
-                      onClick={handleTestLink}
-                      disabled={linkLoading || !testUrl.trim()}
-                      className="text-[11px] px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 flex-shrink-0"
-                    >
-                      {linkLoading ? (
-                        <>
-                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Summarizing...
-                        </>
-                      ) : 'Summarize'}
-                    </button>
-                  </div>
-
-                  {linkError && (
-                    <div className="text-[11px] text-red-600 bg-red-50 rounded px-2 py-1.5">
-                      {linkError}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-slate-500">Headline</span>
-                    <textarea
-                      value={sampleData.headline}
-                      onChange={(e) => updateSample({ headline: e.target.value })}
-                      className="text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
-                      dir="auto"
-                      rows={2}
-                    />
-                  </div>
-
-                  <TextInput
-                    label="Source Label"
-                    value={sampleData.sourceLabel}
-                    onChange={(v) => updateSample({ sourceLabel: v })}
-                  />
-
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500">Bullets</span>
-                      <button
-                        onClick={addBullet}
-                        className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors"
-                      >
-                        + Add
-                      </button>
-                    </div>
-                    {sampleData.bullets.map((bullet, i) => (
-                      <div key={i} className="flex gap-1.5 items-start">
-                        <span className="text-[10px] text-slate-400 mt-1.5 w-4 text-center flex-shrink-0">
-                          {i + 1}
-                        </span>
-                        <textarea
-                          value={bullet}
-                          onChange={(e) => updateBullet(i, e.target.value)}
-                          className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
-                          dir="auto"
-                          rows={2}
-                        />
-                        {sampleData.bullets.length > 1 && (
-                          <button
-                            onClick={() => removeBullet(i)}
-                            className="text-[10px] text-red-400 hover:text-red-600 mt-1.5 flex-shrink-0"
-                            title="Remove bullet"
-                          >
-                            &times;
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                    <button
-                      onClick={setAsDefaultSample}
-                      className="text-[11px] px-3 py-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
-                    >
-                      {isDefaultSample ? 'Update Default' : 'Set as Default'}
-                    </button>
-                    <button
-                      onClick={resetSampleToBuiltin}
-                      className="text-[11px] px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded-md transition-colors"
-                    >
-                      Reset to Original
-                    </button>
-                    {isDefaultSample && (
-                      <span className="text-[10px] text-emerald-600">
-                        Custom default active
-                      </span>
-                    )}
-                  </div>
-                </div>
               </Section>
             </div>
 
@@ -1557,7 +1402,7 @@ export default function PosterEditorPage() {
           </div>
         </div>
 
-        {/* ── Right: Preview ── */}
+        {/* ── Right: Preview + Test Link ── */}
         <div
           ref={previewRef}
           className="w-[42%] bg-slate-100 border-l border-slate-200 overflow-auto p-4 space-y-6"
@@ -1568,11 +1413,11 @@ export default function PosterEditorPage() {
                 9:16 — {config.canvasWidth} × {config.canvasHeight}
               </span>
               <button
-                onClick={() => exportPoster('9:16')}
+                onClick={() => exportPoster()}
                 disabled={!!exporting}
                 className="text-[11px] px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
-                {exporting === '9:16' ? (
+                {exporting ? (
                   <>
                     <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1593,36 +1438,115 @@ export default function PosterEditorPage() {
             />
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                4:5 — {config4x5.canvasWidth} × {config4x5.canvasHeight}
-              </span>
-              <button
-                onClick={() => exportPoster('4:5')}
-                disabled={!!exporting}
-                className="text-[11px] px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-              >
-                {exporting === '4:5' ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Exporting...
-                  </>
-                ) : 'Export PNG'}
-              </button>
+          <Section title="Test Link">
+            <div className="flex flex-col gap-2.5">
+              <div className="flex gap-1.5">
+                <input
+                  type="url"
+                  value={testUrl}
+                  onChange={(e) => setTestUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleTestLink() }}
+                  placeholder="Paste article URL..."
+                  dir="ltr"
+                  className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  disabled={linkLoading}
+                />
+                <button
+                  onClick={handleTestLink}
+                  disabled={linkLoading || !testUrl.trim()}
+                  className="text-[11px] px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 flex-shrink-0"
+                >
+                  {linkLoading ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Summarizing...
+                    </>
+                  ) : 'Summarize'}
+                </button>
+              </div>
+
+              {linkError && (
+                <div className="text-[11px] text-red-600 bg-red-50 rounded px-2 py-1.5">
+                  {linkError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-slate-500">Headline</span>
+                <textarea
+                  value={sampleData.headline}
+                  onChange={(e) => updateSample({ headline: e.target.value })}
+                  className="text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
+                  dir="auto"
+                  rows={2}
+                />
+              </div>
+
+              <TextInput
+                label="Source Label"
+                value={sampleData.sourceLabel}
+                onChange={(v) => updateSample({ sourceLabel: v })}
+              />
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Bullets</span>
+                  <button
+                    onClick={addBullet}
+                    className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition-colors"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {sampleData.bullets.map((bullet, i) => (
+                  <div key={i} className="flex gap-1.5 items-start">
+                    <span className="text-[10px] text-slate-400 mt-1.5 w-4 text-center flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    <textarea
+                      value={bullet}
+                      onChange={(e) => updateBullet(i, e.target.value)}
+                      className="flex-1 text-[12px] text-slate-900 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 resize-none placeholder:text-slate-500"
+                      dir="auto"
+                      rows={2}
+                    />
+                    {sampleData.bullets.length > 1 && (
+                      <button
+                        onClick={() => removeBullet(i)}
+                        className="text-[10px] text-red-400 hover:text-red-600 mt-1.5 flex-shrink-0"
+                        title="Remove bullet"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                <button
+                  onClick={setAsDefaultSample}
+                  className="text-[11px] px-3 py-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-colors"
+                >
+                  {isDefaultSample ? 'Update Default' : 'Set as Default'}
+                </button>
+                <button
+                  onClick={resetSampleToBuiltin}
+                  className="text-[11px] px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded-md transition-colors"
+                >
+                  Reset to Original
+                </button>
+                {isDefaultSample && (
+                  <span className="text-[10px] text-emerald-600">
+                    Custom default active
+                  </span>
+                )}
+              </div>
             </div>
-            <PosterPreview
-              config={config4x5}
-              containerWidth={previewWidth}
-              testImage={testImage}
-              testAvatar={testAvatar}
-              flagImageSrc={flagDataUrl}
-              sampleData={sampleData}
-            />
-          </div>
+          </Section>
         </div>
       </div>
 
@@ -1647,15 +1571,6 @@ export default function PosterEditorPage() {
         <div ref={captureRef916}>
           <PosterCanvas
             config={config}
-            data={sampleData}
-            imageBase64={testImage}
-            avatarBase64={testAvatar}
-            flagImageSrc={flagDataUrl}
-          />
-        </div>
-        <div ref={captureRef4x5}>
-          <PosterCanvas
-            config={config4x5}
             data={sampleData}
             imageBase64={testImage}
             avatarBase64={testAvatar}
