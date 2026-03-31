@@ -1230,7 +1230,11 @@ export default function PosterEditorPage() {
                     )}
                   </>
                 )}
-                <SectionJsonCopy config={config} keys={['backgroundColor', 'backgroundGradient', 'pattern']} />
+                <hr className="border-slate-100" />
+                <div className="text-[10px] font-semibold text-teal-500 uppercase tracking-wider">Content Area</div>
+                <Slider label="Horizontal Padding" value={config.content.paddingX} min={0} max={300} onChange={(v) => update('content.paddingX', v)} />
+                <Slider label="Content Y" value={config.content.positionY ?? 650} min={0} max={1600} onChange={(v) => update('content.positionY', v)} />
+                <SectionJsonCopy config={config} keys={['backgroundColor', 'backgroundGradient', 'pattern', 'content']} />
               </Section>
 
               <Section title="Hero Image">
@@ -1384,21 +1388,19 @@ export default function PosterEditorPage() {
                 <Slider label="Border Line Width" value={config.bullets.borderLineWidth} min={0} max={8} onChange={(v) => update('bullets.borderLineWidth', v)} />
                 <ColorInput label="Border Line Color" value={config.bullets.borderLineColor} onChange={(v) => update('bullets.borderLineColor', v)} />
                 <Slider label="Padding Right" value={config.bullets.paddingRight} min={-80} max={120} onChange={(v) => update('bullets.paddingRight', v)} />
-                <SectionJsonCopy config={config} keys={['bullets']} />
+                <hr className="border-slate-100" />
+                <div className="text-[10px] font-semibold text-rose-500 uppercase tracking-wider">Notes</div>
+                <Slider label="Notes Font Size" value={config.notes.fontSize} min={8} max={72} onChange={(v) => update('notes.fontSize', v)} />
+                <ColorInput label="Notes Color" value={config.notes.color} onChange={(v) => update('notes.color', v)} />
+                <Slider label="Notes Line Height" value={config.notes.lineHeight} min={0.5} max={3.0} step={0.05} onChange={(v) => update('notes.lineHeight', v)} />
+                <Toggle label="Notes Style" options={[{ value: 'normal', label: 'Normal' }, { value: 'italic', label: 'Italic' }]} value={config.notes.fontStyle} onChange={(v) => update('notes.fontStyle', v)} />
+                <Slider label="Notes Margin Top" value={config.notes.marginTop} min={-30} max={120} onChange={(v) => update('notes.marginTop', v)} />
+                <SectionJsonCopy config={config} keys={['bullets', 'notes']} />
               </Section>
             </div>
 
             {/* ── Row 3 ── */}
-            <div className="grid grid-cols-3 gap-3">
-              <Section title="Notes">
-                <Slider label="Font Size" value={config.notes.fontSize} min={8} max={72} onChange={(v) => update('notes.fontSize', v)} />
-                <ColorInput label="Color" value={config.notes.color} onChange={(v) => update('notes.color', v)} />
-                <Slider label="Line Height" value={config.notes.lineHeight} min={0.5} max={3.0} step={0.05} onChange={(v) => update('notes.lineHeight', v)} />
-                <Toggle label="Style" options={[{ value: 'normal', label: 'Normal' }, { value: 'italic', label: 'Italic' }]} value={config.notes.fontStyle} onChange={(v) => update('notes.fontStyle', v)} />
-                <Slider label="Margin Top" value={config.notes.marginTop} min={-30} max={120} onChange={(v) => update('notes.marginTop', v)} />
-                <SectionJsonCopy config={config} keys={['notes']} />
-              </Section>
-
+            <div className="grid grid-cols-2 gap-3">
               <Section title="Brand Footer">
                 <TextInput label="Brand Text" value={config.brand.text} onChange={(v) => update('brand.text', v)} />
                 <TextInput label="Handle" value={config.brand.handle} onChange={(v) => update('brand.handle', v)} />
@@ -1421,15 +1423,6 @@ export default function PosterEditorPage() {
                 <SectionJsonCopy config={config} keys={['brand']} />
               </Section>
 
-              <Section title="Content Area">
-                <Slider label="Horizontal Padding" value={config.content.paddingX} min={0} max={300} onChange={(v) => update('content.paddingX', v)} />
-                <Slider label="Content Y" value={config.content.positionY ?? 650} min={0} max={1600} onChange={(v) => update('content.positionY', v)} />
-                <SectionJsonCopy config={config} keys={['content']} />
-              </Section>
-            </div>
-
-            {/* ── Test Link ── */}
-            <div className="grid grid-cols-1 gap-3">
               <Section title="Test Link">
                 <div className="flex flex-col gap-2.5">
                   <div className="flex gap-1.5">
