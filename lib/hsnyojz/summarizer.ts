@@ -1,7 +1,7 @@
 import { getPrompt } from '@/lib/hsnyojz/prompt-config'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+const GEMINI_MODEL = 'gemini-2.5-flash'
 
 export interface NewsSummary {
   headline: string
@@ -145,59 +145,41 @@ async function callGemini(
     throw new Error('GEMINI_API_KEY is not configured')
   }
 
-  let lastError: Error | null = null
-
-  for (const model of GEMINI_MODELS) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: 'user', parts }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 4096,
-              responseMimeType: 'application/json',
-            },
-          }),
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 4096,
+          responseMimeType: 'application/json',
         },
-      )
+      }),
+    },
+  )
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const ed = errorData as { error?: { message?: string } }
-        const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 80)
-        // #region agent log
-        console.error(`[HSY-GEMINI-ERR] model=${model} status=${response.status} ${errMsg.slice(0, 80)}`)
-        // #endregion
-        lastError = new Error(`Gemini ${model} HTTP${response.status}: ${errMsg}`)
-        continue
-      }
-
-      const data = await response.json()
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-      const finishReason = data?.candidates?.[0]?.finishReason
-      // #region agent log
-      console.error(`[HSY-GEMINI-OK] model=${model} len=${text?.length} finish=${finishReason}`)
-      // #endregion
-      if (!text) {
-        lastError = new Error(`Gemini ${model}: no text in response (finish=${finishReason})`)
-        continue
-      }
-      return text
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err))
-      // #region agent log
-      console.error(`[HSY-GEMINI-THROW] model=${model} ${lastError.message.slice(0, 80)}`)
-      // #endregion
-      continue
-    }
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    const ed = errorData as { error?: { message?: string } }
+    const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 120)
+    // #region agent log
+    console.error(`[HSY-GEMINI-ERR] ${response.status} ${errMsg.slice(0, 100)}`)
+    // #endregion
+    throw new Error(`Gemini HTTP${response.status}: ${errMsg}`)
   }
 
-  throw lastError || new Error('All Gemini models failed')
+  const data = await response.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  const finishReason = data?.candidates?.[0]?.finishReason
+  // #region agent log
+  console.error(`[HSY-GEMINI-OK] len=${text?.length} finish=${finishReason}`)
+  // #endregion
+  if (!text) throw new Error(`Gemini: empty response (finish=${finishReason})`)
+  return text
 }
 
 export async function summarizeArticle(
