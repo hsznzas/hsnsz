@@ -521,27 +521,15 @@ async function handleNewPoster(
   if (hasUrl) {
     sourceType = 'link'
     let articles
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:scrape-start',message:'Starting scrapeArticle',data:{urls,urlCount:urls.length},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       articles = await Promise.all(urls.map((url) => scrapeArticle(url)))
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:scrape-success',message:'scrapeArticle completed',data:{articlesCount:articles.length,titles:articles.map(a=>a.title?.slice(0,60)),contentLengths:articles.map(a=>a.content?.length??0)},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     } catch (scrapeErr) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:scrape-error',message:'scrapeArticle threw error',data:{error:String(scrapeErr),urls},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
       return NextResponse.json({ ok: true })
     }
 
     const validArticles = articles.filter((article) => article.content || article.title)
     if (validArticles.length === 0) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:no-valid-articles',message:'No valid articles after filtering',data:{articlesCount:articles.length},hypothesisId:'B',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       await sendMessage(chatId, '❌ لم أتمكن من استخراج محتوى من هذا الرابط.')
       return NextResponse.json({ ok: true })
     }
@@ -552,9 +540,6 @@ async function handleNewPoster(
       additionalContentText: parsedText.contentText,
     })
 
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:summarize-start',message:'Starting summarize',data:{validCount:validArticles.length},hypothesisId:'A,C',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       if (validArticles.length === 1) {
         const article = validArticles[0]
@@ -589,9 +574,6 @@ async function handleNewPoster(
         })
       }
     } catch (summarizeErr) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'webhook/route.ts:summarize-error',message:'summarize threw error',data:{error:String(summarizeErr)},hypothesisId:'A,C',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
       return NextResponse.json({ ok: true })
     }

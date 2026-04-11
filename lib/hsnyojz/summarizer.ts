@@ -1,6 +1,7 @@
 import { getPrompt } from '@/lib/hsnyojz/prompt-config'
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
 
 export interface NewsSummary {
   headline: string
@@ -112,7 +113,6 @@ function buildSystemPrompt(basePrompt: string, options?: SummarizeOptions): stri
     prompt += `\n\n═══ Prompt إضافي مؤقت من المستخدم ═══\n${options.temporaryPrompt}`
   }
 
-  // Replace the output format JSON to include new fields
   prompt = prompt.replace(
     /الشكل المطلوب \(JSON فقط\):[\s\S]*?أجب بـ JSON فقط بدون أي نص إضافي أو markdown\./,
     `الشكل المطلوب (JSON فقط):
@@ -135,43 +135,69 @@ entityName و entityOrg و flagEmoji تُستخدم لعرض أفاتار وعل
   return prompt
 }
 
-async function callAnthropic(
-  systemPrompt: string,
-  messages: Array<{ role: 'user'; content: string | Array<Record<string, unknown>> }>,
-): Promise<string> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    }),
-  })
+type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    const ed = errorData as {error?: {type?: string; message?: string}}
-    const errType = ed?.error?.type || 'unknown'
-    const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 80)
-    // #region agent log
-    console.error('[HSY-ANTHROPIC-ERR]', response.status, errType, errMsg.slice(0, 100))
-    // #endregion
-    throw new Error(`HTTP${response.status}:${errType}:${errMsg}`)
+async function callGemini(
+  systemPrompt: string,
+  parts: GeminiPart[],
+): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not configured')
   }
 
-  const data = await response.json()
-  const textContent = data?.content?.[0]?.text
-  // #region agent log
-  console.error('[HSY-ANTHROPIC-OK]', JSON.stringify({len: textContent?.length, head: textContent?.slice(0, 60)}))
-  // #endregion
-  if (!textContent) throw new Error('No response from Claude API')
-  return textContent
+  let lastError: Error | null = null
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+              temperature: 0,
+              maxOutputTokens: 4096,
+              responseMimeType: 'application/json',
+            },
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const ed = errorData as { error?: { message?: string } }
+        const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 80)
+        // #region agent log
+        console.error(`[HSY-GEMINI-ERR] model=${model} status=${response.status} ${errMsg.slice(0, 80)}`)
+        // #endregion
+        lastError = new Error(`Gemini ${model} HTTP${response.status}: ${errMsg}`)
+        continue
+      }
+
+      const data = await response.json()
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      const finishReason = data?.candidates?.[0]?.finishReason
+      // #region agent log
+      console.error(`[HSY-GEMINI-OK] model=${model} len=${text?.length} finish=${finishReason}`)
+      // #endregion
+      if (!text) {
+        lastError = new Error(`Gemini ${model}: no text in response (finish=${finishReason})`)
+        continue
+      }
+      return text
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      // #region agent log
+      console.error(`[HSY-GEMINI-THROW] model=${model} ${lastError.message.slice(0, 80)}`)
+      // #endregion
+      continue
+    }
+  }
+
+  throw lastError || new Error('All Gemini models failed')
 }
 
 export async function summarizeArticle(
@@ -201,9 +227,7 @@ ${content.slice(0, 4000)}`
   }
 
   try {
-    const textContent = await callAnthropic(systemPrompt, [
-      { role: 'user', content: userMessage },
-    ])
+    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -234,9 +258,7 @@ export async function summarizeFromText(
   }
 
   try {
-    const textContent = await callAnthropic(systemPrompt, [
-      { role: 'user', content: userMessage },
-    ])
+    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -268,24 +290,9 @@ export async function summarizeFromImage(
   }
 
   try {
-    const textContent = await callAnthropic(systemPrompt, [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: imagePrompt,
-          },
-        ],
-      },
+    const textContent = await callGemini(systemPrompt, [
+      { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+      { text: imagePrompt },
     ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
@@ -326,9 +333,7 @@ export async function summarizeCombinedSources(
   const userMessage = `لخّص هذه المصادر المتعددة كخبر/بوست واحد مترابط. إذا كانت بينها علاقة، ادمجها بشكل ذكي في ملخص واحد. إذا كانت متقاربة لكن ليست متطابقة، استخرج القاسم المشترك أو الزاوية الأهم.\n\n${combinedSourceText}`
 
   try {
-    const textContent = await callAnthropic(systemPrompt, [
-      { role: 'user', content: userMessage },
-    ])
+    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
     return parseJsonResponse(textContent, options?.bulletCount)
   } catch (error) {
     // #region agent log
