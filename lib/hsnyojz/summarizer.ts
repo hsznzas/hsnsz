@@ -157,10 +157,8 @@ async function callAnthropic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'summarizer.ts:anthropic-error',message:'Anthropic API error',data:{status:response.status,model:'claude-sonnet-4-20250514',errorData},hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
+    const errType = (errorData as {error?: {type?: string}})?.error?.type || 'unknown'
+    throw new Error(`HTTP${response.status}:${errType} - ${JSON.stringify(errorData).slice(0, 80)}`)
   }
 
   const data = await response.json()
