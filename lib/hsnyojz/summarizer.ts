@@ -157,6 +157,9 @@ async function callAnthropic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/2c15ade2-31df-4ae7-9a0f-c195599686d8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'3690e1'},body:JSON.stringify({sessionId:'3690e1',location:'summarizer.ts:anthropic-error',message:'Anthropic API error',data:{status:response.status,model:'claude-sonnet-4-20250514',errorData},hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     throw new Error(`Claude API error: ${response.status} - ${JSON.stringify(errorData)}`)
   }
 
@@ -204,7 +207,10 @@ ${content.slice(0, 4000)}`
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
-    console.error('[HsnYojz Summarizer] Error:', error)
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('[HSY-ARTICLE]', errMsg.slice(0, 120))
+    // #endregion
     throw error
   }
 }
@@ -238,7 +244,10 @@ export async function summarizeFromText(
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
-    console.error('[HsnYojz summarizeFromText] Error:', error)
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('[HSY-TEXT]', errMsg.slice(0, 120))
+    // #endregion
     throw error
   }
 }
@@ -289,7 +298,10 @@ export async function summarizeFromImage(
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
   } catch (error) {
-    console.error('[HsnYojz summarizeFromImage] Error:', error)
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('[HSY-IMAGE]', errMsg.slice(0, 120))
+    // #endregion
     throw error
   }
 }
@@ -330,7 +342,10 @@ export async function summarizeCombinedSources(
     ])
     return parseJsonResponse(textContent, options?.bulletCount)
   } catch (error) {
-    console.error('[HsnYojz summarizeCombinedSources] Error:', error)
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('[HSY-COMBINED]', errMsg.slice(0, 120))
+    // #endregion
     throw error
   }
 }
