@@ -1,7 +1,6 @@
 import { getPrompt } from '@/lib/hsnyojz/prompt-config'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODEL = 'gemini-2.5-flash'
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
 
 export interface NewsSummary {
   headline: string
@@ -136,51 +135,43 @@ entityName و entityOrg و flagEmoji تُستخدم لعرض أفاتار وعل
   return prompt
 }
 
-type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
-
-async function callGemini(
+async function callAnthropic(
   systemPrompt: string,
-  parts: GeminiPart[],
+  messages: Array<{ role: 'user'; content: string | Array<Record<string, unknown>> }>,
 ): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured')
-  }
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json',
-        },
-      }),
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
     },
-  )
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+    }),
+  })
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    const ed = errorData as { error?: { code?: number; message?: string; status?: string } }
+    const ed = errorData as {error?: {type?: string; message?: string}}
+    const errType = ed?.error?.type || 'unknown'
     const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 80)
     // #region agent log
-    console.error('[HSY-GEMINI-ERR]', response.status, errMsg.slice(0, 100))
+    console.error('[HSY-ANTHROPIC-ERR]', response.status, errType, errMsg.slice(0, 100))
     // #endregion
-    throw new Error(`Gemini HTTP${response.status}: ${errMsg}`)
+    throw new Error(`HTTP${response.status}:${errType}:${errMsg}`)
   }
 
   const data = await response.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  const finishReason = data?.candidates?.[0]?.finishReason
+  const textContent = data?.content?.[0]?.text
   // #region agent log
-  console.error('[HSY-GEMINI-RAW]', JSON.stringify({len: text?.length, finish: finishReason, head: text?.slice(0, 60), tail: text?.slice(-40)}))
+  console.error('[HSY-ANTHROPIC-OK]', JSON.stringify({len: textContent?.length, head: textContent?.slice(0, 60)}))
   // #endregion
-  if (!text) throw new Error('No text response from Gemini API')
-  return text
+  if (!textContent) throw new Error('No response from Claude API')
+  return textContent
 }
 
 export async function summarizeArticle(
@@ -210,7 +201,9 @@ ${content.slice(0, 4000)}`
   }
 
   try {
-    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -241,7 +234,9 @@ export async function summarizeFromText(
   }
 
   try {
-    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
     return result
@@ -273,9 +268,24 @@ export async function summarizeFromImage(
   }
 
   try {
-    const textContent = await callGemini(systemPrompt, [
-      { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-      { text: imagePrompt },
+    const textContent = await callAnthropic(systemPrompt, [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: imageBase64,
+            },
+          },
+          {
+            type: 'text',
+            text: imagePrompt,
+          },
+        ],
+      },
     ])
     const result = parseJsonResponse(textContent, options?.bulletCount)
     if (extras?.sourceOverride) result.sourceLabel = extras.sourceOverride
@@ -316,7 +326,9 @@ export async function summarizeCombinedSources(
   const userMessage = `لخّص هذه المصادر المتعددة كخبر/بوست واحد مترابط. إذا كانت بينها علاقة، ادمجها بشكل ذكي في ملخص واحد. إذا كانت متقاربة لكن ليست متطابقة، استخرج القاسم المشترك أو الزاوية الأهم.\n\n${combinedSourceText}`
 
   try {
-    const textContent = await callGemini(systemPrompt, [{ text: userMessage }])
+    const textContent = await callAnthropic(systemPrompt, [
+      { role: 'user', content: userMessage },
+    ])
     return parseJsonResponse(textContent, options?.bulletCount)
   } catch (error) {
     // #region agent log
