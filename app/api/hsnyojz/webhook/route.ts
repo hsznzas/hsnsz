@@ -524,7 +524,8 @@ async function handleNewPoster(
     try {
       articles = await Promise.all(urls.map((url) => scrapeArticle(url)))
     } catch (scrapeErr) {
-      await sendMessage(chatId, '❌ تعذر قراءة المقال. تأكد من صحة الرابط.')
+      console.error('[HsnYojz Webhook] Scrape failed:', scrapeErr)
+      await sendMessage(chatId, describeError('تعذر قراءة المقال. تأكد من صحة الرابط.', scrapeErr))
       return NextResponse.json({ ok: true })
     }
 
@@ -574,7 +575,8 @@ async function handleNewPoster(
         })
       }
     } catch (summarizeErr) {
-      await sendMessage(chatId, '❌ تعذر تلخيص المقال. حاول مرة أخرى.')
+      console.error('[HsnYojz Webhook] Summarize (link) failed:', summarizeErr)
+      await sendMessage(chatId, describeError('تعذر تلخيص المقال.', summarizeErr))
       return NextResponse.json({ ok: true })
     }
 
@@ -600,8 +602,9 @@ async function handleNewPoster(
       summary = await summarizeFromText(parsedText.contentText!, undefined, {
         temporaryPrompt: parsedText.temporaryPromptText || undefined,
       })
-    } catch {
-      await sendMessage(chatId, '❌ تعذر تلخيص النص. حاول مرة أخرى.')
+    } catch (textErr) {
+      console.error('[HsnYojz Webhook] Summarize (text) failed:', textErr)
+      await sendMessage(chatId, describeError('تعذر تلخيص النص.', textErr))
       return NextResponse.json({ ok: true })
     }
   } else if (hasPhoto) {
@@ -622,8 +625,9 @@ async function handleNewPoster(
           temporaryPrompt: parsedText.temporaryPromptText || undefined,
         },
       )
-    } catch {
-      await sendMessage(chatId, '❌ تعذر قراءة النص من الصورة. حاول مرة أخرى.')
+    } catch (imgErr) {
+      console.error('[HsnYojz Webhook] Summarize (image) failed:', imgErr)
+      await sendMessage(chatId, describeError('تعذر قراءة النص من الصورة.', imgErr))
       return NextResponse.json({ ok: true })
     }
   } else {
@@ -1118,4 +1122,30 @@ function getBaseUrl(request: NextRequest): string {
   const host = request.headers.get('host')
   const protocol = host?.includes('localhost') ? 'http' : 'https'
   return process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`
+}
+
+// Produces a user-facing Arabic error message with enough detail to diagnose
+// from inside Telegram. Admin-only chats already gate this handler, so it's
+// safe to surface raw provider errors here.
+function describeError(context: string, err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  const lower = raw.toLowerCase()
+
+  let hint = ''
+  if (lower.includes('denied access') || lower.includes('permission_denied')) {
+    hint = '\n↳ مفتاح Gemini على Vercel مرفوض. فعّل الفوترة أو استبدل المفتاح ثم أعد النشر.'
+  } else if (lower.includes('free_tier') || lower.includes('quota')) {
+    hint = '\n↳ تجاوزت حصة Gemini. فعّل الفوترة أو انتظر.'
+  } else if (lower.includes('api key') && (lower.includes('not valid') || lower.includes('invalid'))) {
+    hint = '\n↳ مفتاح Gemini غير صالح. تحقق من GEMINI_API_KEY على Vercel.'
+  } else if (lower.includes('gemini_api_key') && lower.includes('not configured')) {
+    hint = '\n↳ متغير GEMINI_API_KEY غير مضبوط على Vercel.'
+  }
+
+  const safeRaw = raw.length > 300 ? `${raw.slice(0, 300)}…` : raw
+  return `❌ ${context}\n<code>${escapeHtml(safeRaw)}</code>${hint}`
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
