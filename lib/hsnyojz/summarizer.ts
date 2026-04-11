@@ -157,8 +157,10 @@ async function callAnthropic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    const errType = (errorData as {error?: {type?: string}})?.error?.type || 'unknown'
-    throw new Error(`HTTP${response.status}:${errType} - ${JSON.stringify(errorData).slice(0, 80)}`)
+    const ed = errorData as {error?: {type?: string; message?: string}}
+    const errType = ed?.error?.type || 'unknown'
+    const errMsg = ed?.error?.message || JSON.stringify(errorData).slice(0, 60)
+    throw new Error(`HTTP${response.status}:${errType}:${errMsg}`)
   }
 
   const data = await response.json()
