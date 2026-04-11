@@ -156,7 +156,7 @@ async function callGemini(
         contents: [{ role: 'user', parts }],
         generationConfig: {
           temperature: 0,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
         },
       }),
@@ -175,6 +175,10 @@ async function callGemini(
 
   const data = await response.json()
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  const finishReason = data?.candidates?.[0]?.finishReason
+  // #region agent log
+  console.error('[HSY-GEMINI-RAW]', JSON.stringify({len: text?.length, finish: finishReason, head: text?.slice(0, 60), tail: text?.slice(-40)}))
+  // #endregion
   if (!text) throw new Error('No text response from Gemini API')
   return text
 }
